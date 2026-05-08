@@ -55,6 +55,26 @@ pipeline {
             }
         }
 
+        stage ('Sonar Analysis') {
+            steps {
+              dir('eureka') {
+                withSonarQubeEnv('sonar') {
+    sh """
+        mvn sonar:sonar \
+            -Dsonar.projectKey=com.ksapp:eureka \
+            -Dsonar.projectName="Eureka_Service_Registry_v${env.SERVICE_VERSION}" \
+            -Dsonar.projectVersion=${env.SERVICE_VERSION} \
+            -Dsonar.sources=src/main/java \
+            -Dsonar.java.binaries=target/classes
+
+    """
+}
+
+
+              }  
+            }
+        }
+
 
     }
 
