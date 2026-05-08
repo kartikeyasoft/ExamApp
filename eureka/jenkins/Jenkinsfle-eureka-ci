@@ -1,0 +1,63 @@
+@Library('jenkins-shared-lib-demo@main') _
+pipeline {
+    agent any
+
+    tools {
+    maven 'Maven-3.8'
+    jdk 'JDK-17'
+}
+
+
+    environment {
+        AWS_ACCESS_KEY_ID = credentials('aws-access-key-id')      
+        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')        
+        NEXUS_CREDS = credentials('nexus-credentials')
+        SERVICE_NAME = 'eureka'
+
+    }  
+
+    stages {
+
+        stage('Load Configuration') {
+            steps {
+                script {
+                    // Load configuration from config.yml
+                    def config = envConfig()
+
+                    env.NEXUS_URL= config.nexus.url
+                    env.AWS_REGION = config.aws.region
+                    env.EUREKA_PORT = config.eureka.defaultPort 
+                    env.BASE_AMI_ID = config.baseAmi.ubuntu2204 
+                    env.SERVICE_NAME = config.servicename.eureka
+
+                    echo "Loaded configuration: NEXUS_URL=${env.NEXUS_URL}, AWS_REGION=${env.AWS_REGION}, EUREKA_PORT=${env.EUREKA_PORT}, BASE_AMI_ID=${env.BASE_AMI_ID}, SERVICE_NAME=${env.SERVICE_NAME}"
+                    
+                }
+            }
+        }
+
+
+
+
+    //     stage('Build AMI') {
+    //         steps {
+    //             sh """
+    //                 packer init packer/ami.pkr.hcl
+    //                 packer validate packer/ami.pkr.hcl
+    //                 packer build \
+    //                     -var 'build_number=${BUILD_NUMBER}' \
+    //                     packer/ami.pkr.hcl
+    //             """
+    //         }
+    //     }
+    // }
+
+    post {
+        success {
+            echo 'AMI build completed successfully!'                   
+        }
+        failure {
+            echo 'AMI build failed. Check logs above.'
+        }
+    }
+}
