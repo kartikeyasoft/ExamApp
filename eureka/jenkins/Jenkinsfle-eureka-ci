@@ -39,11 +39,19 @@ pipeline {
             steps { 
                 script {
                 dir('eureka') {
-   env.SERVICE_VERSION = sh(script: 'mvn help:evaluate -Dexpression=project.version -q -DforceStdout', returnStdout: true).trim()
-   echo "POM Running Version : ${env.SERVICE_VERSION}"
+                    env.SERVICE_VERSION = sh(script: 'mvn help:evaluate -Dexpression=project.version -q -DforceStdout', returnStdout: true).trim()
+                    echo "POM Running Version : ${env.SERVICE_VERSION}"
 }
                 }
 
+            }
+        }
+        stage ('Maven Compile){
+            steps{
+                dir('eureka') {
+                   sh 'mvn compile' 
+
+                }
             }
         }
 
