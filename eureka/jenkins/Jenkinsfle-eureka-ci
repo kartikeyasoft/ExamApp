@@ -35,6 +35,16 @@ pipeline {
                 }
             }
         }
+        stage('Set Version') {
+            steps { 
+                dir('eureka') {
+    env.SERVICE_VERSION = sh(script: 'mvn help:evaluate -Dexpression=project.version -q -DforceStdout', returnStdout: true).trim()
+}
+
+            }
+        }
+
+
     }
 
 
