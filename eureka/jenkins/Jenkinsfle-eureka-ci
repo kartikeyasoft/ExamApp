@@ -46,7 +46,7 @@ pipeline {
 
             }
         }
-        stage ('Maven Compile) {
+        stage ('Maven Compile') {
             steps{
                 dir('eureka') {
                    sh 'mvn compile' 
