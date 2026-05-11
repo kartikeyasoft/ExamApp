@@ -84,8 +84,20 @@ pipeline {
             }
         }
 
+            stage ('Maven Deploy') {
+            steps{
+                dir('eureka') {
+                   sh 'mvn deploy' 
+
+                }
+            }
+        }
+
+
 
     }
+
+
 
 
 
