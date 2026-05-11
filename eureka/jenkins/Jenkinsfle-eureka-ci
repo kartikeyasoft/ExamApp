@@ -28,7 +28,7 @@ pipeline {
                     env.AWS_REGION = config.aws.region
                     env.EUREKA_PORT = config.eureka.defaultPort 
                     env.BASE_AMI_ID = config.baseAmi.ubuntu2204 
-                    env.SERVICE_NAME = config.servicename.eureka
+                    env.SERVICE_NAME = config.servicename.obj1
 
                     echo "Loaded configuration: NEXUS_URL=${env.NEXUS_URL}, AWS_REGION=${env.AWS_REGION}, EUREKA_PORT=${env.EUREKA_PORT}, BASE_AMI_ID=${env.BASE_AMI_ID}, SERVICE_NAME=${env.SERVICE_NAME}"
                     
