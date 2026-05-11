@@ -84,11 +84,14 @@ pipeline {
             }
         }
 
-            stage ('Maven Deploy') {
-            steps{
-                dir('eureka') {
-                   sh 'mvn deploy' 
-
+            stage('Deploy to Nexus') {
+            steps {
+                script {
+                    def jarFile = "target/eureka-${env.SERVICE_VERSION}.jar"
+                    def nexusPath = "${env.NEXUS_URL}/com/ksapp/eureka/${env.SERVICE_VERSION}/eureka-${env.SERVICE_VERSION}.jar"
+                    sh """
+                        curl -v -u ${env.NEXUS_CREDS} --upload-file ${jarFile} ${nexusPath}
+                    """
                 }
             }
         }
