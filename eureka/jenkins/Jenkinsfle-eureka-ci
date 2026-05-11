@@ -92,7 +92,7 @@ pipeline {
 
                     sh """
                        echo $jarfile
-                        curl -v -u ${env.NEXUS_CREDS} --upload-file ${jarFile} ${nexusPath}
+                       curl -v -u "${env.NEXUS_CREDS} --upload-file ${jarFile} ${nexusPath}"
                     """
                 }
             }
