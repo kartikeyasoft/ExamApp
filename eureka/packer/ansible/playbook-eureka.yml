@@ -26,10 +26,7 @@
         - unzip
         - net-tools
 
-    - name: Install jq
-      shell: sudo apt-get install -y jq
-      args:
-        warn: no
+   
 
     - name: Install MySQL client
       apt:
