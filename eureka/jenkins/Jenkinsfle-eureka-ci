@@ -86,7 +86,7 @@ pipeline {
 
         stage('Deploy to Nexus') {
             steps {
-              
+               dir('eureka') {
                 script {
                     def jarFile = "target/eureka-${env.SERVICE_VERSION}.jar"
                     def nexusPath = "${env.NEXUS_URL}/com/ksapp/eureka/${env.SERVICE_VERSION}/eureka-${env.SERVICE_VERSION}.jar"
@@ -95,7 +95,8 @@ pipeline {
                     """
                 }
             }
-        }     
+        }   
+        }  
 
     
 
