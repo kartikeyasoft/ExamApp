@@ -99,7 +99,7 @@ pipeline {
 
     }
 
-        stage ('Maven Package') {
+        stage ('Bake Golden Image') {
            steps{
             withEnv([
                 "SERVICE_VERSION=${env.SERVICE_VERSION}",
