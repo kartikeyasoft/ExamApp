@@ -95,7 +95,26 @@ pipeline {
                     """
                 }
             }
-        }   
+        } 
+        stage('Bake Golden Image') {
+            steps {
+                withEnv([
+                    "SERVICE_VERSION=${env.SERVICE_VERSION}",
+                    "SERVICE_NAME=${env.SERVICE_NAME}",
+                    "NEXUS_URL=${env.NEXUS_URL}",
+                    "EUREKA_PORT=${env.EUREKA_PORT}",
+                    "BASE_AMI_ID=${env.BASE_AMI_ID}"
+                    ]) {
+                        dir('eureka/packer') {
+                        sh '''
+                            packer init eureka.pkr.hcl
+
+
+
+
+
+
+
         }  
 
     
