@@ -96,6 +96,7 @@ pipeline {
                 }
             }
         } 
+        }
         stage('Bake Golden Image') {
             steps {
                 withEnv([
