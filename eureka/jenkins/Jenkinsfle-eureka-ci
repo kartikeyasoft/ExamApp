@@ -98,7 +98,39 @@ pipeline {
         }     
 
     }
-}
+
+        stage ('Maven Package') {
+           steps{
+            withEnv([
+                "SERVICE_VERSION=${env.SERVICE_VERSION}",
+                "SERVICE_NAME=${env.SERVICE_NAME}",
+                "NEXUS_URL=${env.NEXUS_URL}",
+                "EUREKA_PORT=${env.EUREKA_PORT}",
+                "BASE_AMI_ID=${env.BASE_AMI_ID}"
+                ]) {
+                    dir('eureka/packer') {
+                        sh '''
+                            packer init eureka.pkr.hcl
+                            packer build \
+                                -var "service_version=${SERVICE_VERSION}" \
+                                -var "service_name=${SERVICE_NAME}" \
+                                -var "nexus_url=${NEXUS_URL}" \
+                                -var "eureka_port=${EUREKA_PORT}" \
+                                -var "source_ami=${BASE_AMI_ID}" \
+                                eureka.pkr.hcl 2>&1 | tee build-output.txt
+                            AMI_ID=$(grep -oE 'ami-[a-f0-9]{17}' build-output.txt | tail -1)
+                            echo "GOLDEN_AMI_ID=$AMI_ID" > golden-ami.properties
+                        '''
+                    }
+                }
+           }
+
+
+
+    
+           }
+        }
+
 
 
 
