@@ -1,0 +1,47 @@
+@Library('jenkins-shared-lib-deno@main') _
+
+pipeline {
+ agent any
+
+ parameters {
+ string(name: 'AMI_ID', defaultValue: '', description: 'Eureka AMI ID (leave empty for latest)')
+ choice(name: 'ACTION', choices: ['apply', 'destroy'], description: 'Terraform action')
+}
+environment {
+ // AWS Credentials from Jenkins
+ AWS_ACCESS_KEY_ID = credentials('aws-access-key-id')
+ AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
+}
+
+stage('Load Configuration') {
+ steps {
+ script {
+ // Load configuration from shared library
+ def config = envConfig()
+
+ // Set environment variables from config
+ env.AWS_DEFAULT_REGION = config.aws.region
+ env.EUREKA_PORT = config.eureka.defaultPort
+ env.NEXUS_URL = config.nexus.url
+
+
+ echo "=========================================="
+ echo "Eureka CD Pipeline"
+ echo "=========================================="
+ echo "Action: ${params.ACTION}"
+ echo "AWS Region: ${env.AWS_DEFAULT_REGION}"
+ echo "Eureka Port: ${env.EUREKA_PORT}"
+ echo "Nexus URL: ${env.NEXUS_URL}"
+ echo "=========================================="
+ }
+ }
+}
+
+stage('Checkout') {
+ steps {
+ git url: 'https://github.com/kartikeyasoft/ExamApp.git', branch: 'main'
+ }
+}
+
+
+
