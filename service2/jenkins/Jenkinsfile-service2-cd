@@ -1,0 +1,296 @@
+@Library('jenkins-shared-lib-deno@main') _
+
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'AMI_ID', defaultValue: '', description: 'Service2 AMI ID')
+        choice(name: 'ACTION', choices: ['apply', 'destroy'], description: 'Terraform action')
+    }
+
+    environment {
+        AWS_ACCESS_KEY_ID = credentials('aws-access-key-id')
+        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
+        DB_USERNAME_CREDS = credentials('db-username')
+        DB_PASSWORD = credentials('db-password')
+    }
+
+    stages {
+        stage('Load Configuration') {
+            steps {
+                script {
+                    def config = envConfig()
+                    
+                    env.AWS_DEFAULT_REGION = config.aws.region
+                    env.NEXUS_URL = config.nexus.url
+                    env.DB_URL = config.db.url
+                    env.DB_HOST = config.db.host
+                    env.DB_PORT = config.db.port
+                    env.DB_NAME = config.db.name
+                    env.SERVICE_NAME = 'service2'
+                    env.SERVICE_PORT = config.services.service2.defaultPort
+                    env.EUREKA_PORT = config.eureka.defaultPort
+                    
+                    echo "=========================================="
+                    echo "Service2 CD Pipeline"
+                    echo "=========================================="
+                    echo "Action: ${params.ACTION}"
+                    echo "AWS Region: ${env.AWS_DEFAULT_REGION}"
+                    echo "Service Port: ${env.SERVICE_PORT}"
+                    echo "DB URL: ${env.DB_URL}"
+                    echo "Eureka Port: ${env.EUREKA_PORT}"
+                    echo "=========================================="
+                }
+            }
+        }
+
+        stage('Checkout') {
+            steps {
+                git url: 'https://github.com/kartikeyasoft/micro.git', branch: 'main'
+            }
+        }
+
+        stage('Get Eureka URL from SSM') {
+            when { expression { params.ACTION == 'apply' } }
+            steps {
+                script {
+                    def eurekaIp = sh(script: """
+                        aws ssm get-parameter \
+                            --name "/exam/eureka/ip" \
+                            --query 'Parameter.Value' \
+                            --output text 2>/dev/null || echo ""
+                    """, returnStdout: true).trim()
+                    
+                    if (!eurekaIp || eurekaIp == 'None' || eurekaIp == 'null' || eurekaIp == '') {
+                        error "Eureka IP not found or is null in SSM. Please run Eureka CD first and wait for completion."
+                    }
+                    
+                    env.EUREKA_URL = "http://${eurekaIp}:${env.EUREKA_PORT}/eureka/"
+                    echo "✅ Retrieved Eureka URL from SSM: ${env.EUREKA_URL}"
+                }
+            }
+        }
+
+        stage('Get AMI ID') {
+            when { expression { params.ACTION == 'apply' } }
+            steps {
+                script {
+                    def amiId = params.AMI_ID
+                    
+                    if (!amiId || amiId == '') {
+                        try {
+                            unstash 'service2-ami'
+                            def amiProps = readFile('golden-ami.properties')
+                            amiId = amiProps.split('=')[1].trim()
+                            echo "✅ Retrieved AMI from CI: ${amiId}"
+                        } catch (Exception e) {
+                            echo "No AMI found in stash"
+                        }
+                    }
+                    
+                    if (!amiId || amiId == '') {
+                        amiId = sh(script: """
+                            aws ec2 describe-images \
+                                --region ${env.AWS_DEFAULT_REGION} \
+                                --owners self \
+                                --filters "Name=name,Values=myapp-service2-v*" \
+                                --query 'Images | sort_by(@, &CreationDate) | [-1].ImageId' \
+                                --output text
+                        """, returnStdout: true).trim()
+                        echo "✅ Found latest AMI from AWS: ${amiId}"
+                    }
+                    
+                    if (!amiId || amiId == '') {
+                        error "No AMI ID found!"
+                    }
+                    
+                    env.AMI_ID = amiId
+                    echo "✅ Using AMI ID: ${env.AMI_ID}"
+                }
+            }
+        }
+
+        stage('Validate') {
+            when { expression { params.ACTION == 'apply' } }
+            steps {
+                script {
+                    if (!env.AMI_ID || env.AMI_ID == '') {
+                        error "AMI_ID is required for apply action"
+                    }
+                    if (!env.EUREKA_URL || env.EUREKA_URL == '') {
+                        error "EUREKA_URL is required for apply action"
+                    }
+                    echo "✅ Validation passed"
+                    echo "   AMI ID: ${env.AMI_ID}"
+                    echo "   Eureka URL: ${env.EUREKA_URL}"
+                }
+            }
+        }
+
+        stage('Terraform Init') {
+            steps {
+                dir('service2/terraform') {
+                    sh 'terraform init'
+                }
+            }
+        }
+
+        stage('Terraform Apply') {
+            when { expression { params.ACTION == 'apply' } }
+            steps {
+                dir('service2/terraform') {
+                    sh """
+                        terraform apply -auto-approve \
+                            -var="ami_id=${env.AMI_ID}" \
+                            -var="aws_region=${env.AWS_DEFAULT_REGION}" \
+                            -var="eureka_url=${env.EUREKA_URL}" \
+                            -var="db_url=${env.DB_URL}" \
+                            -var="db_username=${DB_USERNAME_CREDS_USR}" \
+                            -var="db_password=${DB_PASSWORD}" \
+                            -var="service_port=${env.SERVICE_PORT}"
+                    """
+                }
+            }
+        }
+
+        // ✅ NEW STAGE: Store Service2 IP/Port in SSM for Gateway
+        stage('Store Service2 Endpoint in SSM') {
+            when { expression { params.ACTION == 'apply' } }
+            steps {
+                script {
+                    dir('service2/terraform') {
+                        def service2_ip = ""
+                        try {
+                            service2_ip = sh(script: "terraform output -raw service2_private_ip", returnStdout: true).trim()
+                            echo "✅ Retrieved Service2 Private IP from Terraform: ${service2_ip}"
+                        } catch (Exception e) {
+                            echo "⚠️ Could not get service2_private_ip from terraform output"
+                            service2_ip = sh(script: """
+                                aws ec2 describe-instances \
+                                    --filters "Name=tag:Name,Values=service2*" "Name=instance-state-name,Values=running" \
+                                    --query 'Reservations[0].Instances[0].PrivateIpAddress' \
+                                    --region ${env.AWS_DEFAULT_REGION} \
+                                    --output text
+                            """, returnStdout: true).trim()
+                            echo "⚠️ Using discovered Service2 IP: ${service2_ip}"
+                        }
+                        
+                        if (service2_ip && service2_ip != 'None' && service2_ip != '' && service2_ip != 'null') {
+                            // Store just the URL in SSM (simplest for Gateway)
+                            sh """
+                                aws ssm put-parameter \
+                                    --name "/exam/services/service2/url" \
+                                    --value "http://${service2_ip}:${env.SERVICE_PORT}" \
+                                    --type "String" \
+                                    --overwrite \
+                                    --region ${env.AWS_DEFAULT_REGION}
+                            """
+                            
+                            // Also store as JSON with metadata for future use
+                            def timestamp = sh(script: "date -u +%Y-%m-%dT%H:%M:%SZ", returnStdout: true).trim()
+                            def serviceEndpoint = """{"ip":"${service2_ip}","port":"${env.SERVICE_PORT}","url":"http://${service2_ip}:${env.SERVICE_PORT}","service":"service2","updatedAt":"${timestamp}"}"""
+                            
+                            sh """
+                                aws ssm put-parameter \
+                                    --name "/exam/services/service2" \
+                                    --value '${serviceEndpoint}' \
+                                    --type "String" \
+                                    --overwrite \
+                                    --region ${env.AWS_DEFAULT_REGION}
+                            """
+                            
+                            echo "=========================================="
+                            echo "✅ Service2 Endpoint Stored in SSM"
+                            echo "=========================================="
+                            echo "Service2 IP: ${service2_ip}"
+                            echo "Service2 Port: ${env.SERVICE_PORT}"
+                            echo "Service2 URL: http://${service2_ip}:${env.SERVICE_PORT}"
+                            echo "SSM Path: /exam/services/service2/url"
+                            echo "=========================================="
+                        } else {
+                            echo "⚠️ Could not determine Service2 IP, skipping SSM update"
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Terraform Destroy') {
+            when { expression { params.ACTION == 'destroy' } }
+            steps {
+                script {
+                    // ✅ NEW: Clean up SSM entries on destroy
+                    echo "🧹 Cleaning up SSM parameters for Service2..."
+                    sh """
+                        aws ssm delete-parameter \
+                            --name "/exam/services/service2/url" \
+                            --region ${env.AWS_DEFAULT_REGION} 2>/dev/null || true
+                    """
+                    sh """
+                        aws ssm delete-parameter \
+                            --name "/exam/services/service2" \
+                            --region ${env.AWS_DEFAULT_REGION} 2>/dev/null || true
+                    """
+                    echo "✅ SSM cleanup completed"
+                }
+                dir('service2/terraform') {
+                    sh """
+                        terraform destroy -auto-approve \
+                            -var="eureka_url=http://dummy:8761/eureka/" \
+                            -var="db_username=dummy" \
+                            -var="db_password=dummy" \
+                            -var="db_url=${env.DB_URL}" \
+                            -var="service_port=${env.SERVICE_PORT}"
+                    """
+                }
+            }
+        }
+
+        stage('Output') {
+            when { expression { params.ACTION == 'apply' } }
+            steps {
+                script {
+                    dir('service2/terraform') {
+                        def public_ip = sh(script: "terraform output -raw service2_public_ip", returnStdout: true).trim()
+                        def private_ip = sh(script: "terraform output -raw service2_private_ip", returnStdout: true).trim()
+                        
+                        echo "=========================================="
+                        echo "✅ Service2 Deployed Successfully!"
+                        echo "=========================================="
+                        echo "AMI ID: ${env.AMI_ID}"
+                        echo "Public IP: ${public_ip}"
+                        echo "Private IP: ${private_ip}"
+                        echo "Service Port: ${env.SERVICE_PORT}"
+                        echo "API URL: http://${public_ip}:${env.SERVICE_PORT}"
+                        echo "Internal URL: http://${private_ip}:${env.SERVICE_PORT}"
+                        echo "Eureka URL: ${env.EUREKA_URL}"
+                        echo "DB URL: ${env.DB_URL}"
+                        echo "SSM Path: /exam/services/service2/url"
+                        echo "=========================================="
+                        
+                        echo ""
+                        echo "Gateway can discover Service2 at:"
+                        echo "aws ssm get-parameter --name /exam/services/service2/url --query Parameter.Value --output text"
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            script {
+                echo "✅ Service2 ${params.ACTION} completed successfully!"
+                if (params.ACTION == 'apply') {
+                    echo "🎯 Service2 endpoint registered in SSM for Gateway discovery"
+                }
+            }
+        }
+        failure {
+            script {
+                echo "❌ Service2 ${params.ACTION} failed!"
+                echo "Check the logs above for detailed error information"
+            }
+        }
+    }
+}

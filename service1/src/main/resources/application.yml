@@ -1,0 +1,20 @@
+server:
+  port: 9001
+
+spring:
+  application:
+    name: service1  # ← Critical! Must match Gateway's lb://service1
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://192.168.29.63:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.cloud.client.ip-address}:${server.port}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
