@@ -121,7 +121,7 @@ pipeline {
                         
                         echo "Uploading to: ${nexusPath}"
                         
-                        withCredentials([usernamePassword(credentialsId: 'nexus-creds', 
+                        withCredentials([usernamePassword(credentialsId: 'nexus-credentials', 
                                                         usernameVariable: 'NEXUS_USER', 
                                                         passwordVariable: 'NEXUS_PASS')]) {
                             sh """
