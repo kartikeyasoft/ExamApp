@@ -46,7 +46,7 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git url: 'https://github.com/kartikeyasoft/micro.git', branch: 'main'
+                git url: 'https://github.com/kartikeyasoft/ExamApp.git', branch: 'main'
             }
         }
 
