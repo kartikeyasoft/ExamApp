@@ -145,7 +145,7 @@ pipeline {
                             -var="aws_region=${env.AWS_DEFAULT_REGION}" \
                             -var="eureka_url=${env.EUREKA_URL}" \
                             -var="db_url=${env.DB_URL}" \
-                            -var="db_username=${DB_USERNAME_CREDS_USR}" \
+                            -var="db_username=${DB_USERNAME_CREDS}" \
                             -var="db_password=${DB_PASSWORD}" \
                             -var="service_port=${env.SERVICE_PORT}"
                     """
