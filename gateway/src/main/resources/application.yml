@@ -1,0 +1,56 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+  cloud:
+    gateway:
+      httpclient:
+        connect-timeout: 60000
+        response-timeout: 90s
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: false
+
+service1:
+  url: ${SERVICE1_URL:http://172.31.35.110:9001}
+
+service2:
+  url: ${SERVICE2_URL:http://172.31.42.94:9002}
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false
+
+logging:
+  level:
+    com.jwt_gateway: DEBUG
+    org.springframework.cloud.gateway: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
