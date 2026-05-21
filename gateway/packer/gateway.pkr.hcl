@@ -58,6 +58,8 @@ source "amazon-ebs" "gateway" {
 
 build {
   sources = ["source.amazon-ebs.gateway"]
+  user = "ubuntu"
+  proxy = false
 
   provisioner "ansible" {
     playbook_file = "./ansible/playbook-gateway.yml"
