@@ -1,4 +1,4 @@
-@Library('jenkins-shared-lib-deno@main') _
+@Library('jenkins-shared-lib-demo@main') _
 
 pipeline {
     agent any
@@ -53,7 +53,7 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git url: 'https://github.com/kartikeyasoft/micro.git', branch: 'main'
+                git url: 'https://github.com/kartikeyasoft/ExamApp.git', branch: 'main'
             }
         }
 
