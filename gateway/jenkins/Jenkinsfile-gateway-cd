@@ -171,7 +171,7 @@ pipeline {
                             -var="service1_url=${env.SERVICE1_URL}" \
                             -var="service2_url=${env.SERVICE2_URL}" \
                             -var="db_url=${env.DB_URL}" \
-                            -var="db_username=${DB_USERNAME_CREDS_USR}" \
+                            -var="db_username=${DB_USERNAME_CREDS}" \
                             -var="db_password=${DB_PASSWORD}" \
                             -var="service_port=${env.SERVICE_PORT}" \
                             -var="vpc_id=${env.VPC_ID}" \
