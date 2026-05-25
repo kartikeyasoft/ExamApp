@@ -29,6 +29,8 @@ pipeline {
                     env.DB_NAME = config.db.name
                     env.SERVICE_NAME = 'gateway'
                     env.SERVICE_PORT = config.services.gateway.defaultPort
+                    env.EUREKA_PORT = config.eureka.defaultPort
+                    
                     
                     // Get network configuration from shared library
                     env.VPC_ID = config.vpc?.id ?: "vpc-0cb7deb47a6bfa727"
