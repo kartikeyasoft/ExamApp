@@ -78,6 +78,7 @@ resource "aws_instance" "gateway" {
     aws_region     = var.aws_region
     service1_url   = var.service1_url
     service2_url   = var.service2_url
+    eureka_url     = var.eureka_url
   }))
 
   tags = {
