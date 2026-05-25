@@ -83,12 +83,9 @@ resource "aws_instance" "redis" {
     # Create environment file with Eureka URL from SSM
     cat > /opt/redis/redis.env << 'ENVEOF'
     EUREKA_URL=${var.eureka_url}
-    SERVER_PORT=${var.service_port}
+    SERVER_PORT=${var.service_port} 
     SPRING_APP_NAME=redis
-    EUREKA_CLIENT_REGISTER_WITH_EUREKA=true
-    EUREKA_CLIENT_FETCH_REGISTRY=true
-    EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
-    ENVEOF
+  
     
     # Set proper permissions
     chown redis:redis /opt/redis/redis.env 2>/dev/null || true

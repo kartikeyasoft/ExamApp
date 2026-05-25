@@ -44,8 +44,7 @@ variable "key_name" {
 # Service-specific variables
 variable "eureka_url" {
   description = "Eureka server URL"
-  type        = string
-  default     = ""
+  type        = string  
 }
 
 variable "service_port" {
