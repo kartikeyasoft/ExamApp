@@ -75,6 +75,5 @@ variable "instance_type" {
 # Service-specific variables
 variable "eureka_url" {
   description = "Eureka server URL"
-  type        = string
-  default     = ""
+  type        = string 
 }
