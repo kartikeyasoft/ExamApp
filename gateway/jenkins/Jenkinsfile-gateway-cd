@@ -82,8 +82,23 @@ pipeline {
                         error "Service2 URL not found in SSM. Please run Service2 CD first."
                     }
                     
+                    // Get Eureka URL from SSM
+                    def eurekaIp = sh(script: """
+                        aws ssm get-parameter \
+                            --name "/exam/eureka/ip" \
+                            --query 'Parameter.Value' \
+                            --output text 2>/dev/null || echo ""
+                    """, returnStdout: true).trim()
+                    
+                    if (!eurekaIp || eurekaIp == 'None' || eurekaIp == 'null' || eurekaIp == '') {
+                        error "Eureka IP not found or is null in SSM. Please run Eureka CD first and wait for completion."
+                    }
+                    
+                    env.EUREKA_URL = "http://${eurekaIp}:${env.EUREKA_PORT}/eureka/"
+                    
                     echo "✅ Service1 URL from SSM: ${service1Url}"
                     echo "✅ Service2 URL from SSM: ${service2Url}"
+                    echo "✅ Retrieved Eureka URL from SSM: ${env.EUREKA_URL}"
                     
                     env.SERVICE1_URL = service1Url
                     env.SERVICE2_URL = service2Url
@@ -143,10 +158,14 @@ pipeline {
                     if (!env.SERVICE2_URL || env.SERVICE2_URL == '') {
                         error "SERVICE2_URL is required (should be in SSM)"
                     }
+                    if (!env.EUREKA_URL || env.EUREKA_URL == '') {
+                        error "EUREKA_URL is required for apply action"
+                    }
                     echo "✅ Validation passed"
                     echo "   AMI ID: ${env.AMI_ID}"
                     echo "   Service1 URL: ${env.SERVICE1_URL}"
                     echo "   Service2 URL: ${env.SERVICE2_URL}"
+                    echo "   Eureka URL: ${env.EUREKA_URL}"
                 }
             }
         }
@@ -172,6 +191,7 @@ pipeline {
                             -var="db_url=${env.DB_URL}" \
                             -var="db_username=${DB_USERNAME_CREDS}" \
                             -var="db_password=${DB_PASSWORD}" \
+                            -var="eureka_url=${env.EUREKA_URL}" \
                             -var="service_port=${env.SERVICE_PORT}" \
                             -var="vpc_id=${env.VPC_ID}" \
                             -var="subnet_id=${env.SUBNET_ID}" \
@@ -296,6 +316,7 @@ pipeline {
                         echo "Service Port: ${env.SERVICE_PORT}"
                         echo "Gateway URL: http://${public_ip}:${env.SERVICE_PORT}"
                         echo "Internal URL: http://${private_ip}:${env.SERVICE_PORT}"
+                        echo "Eureka URL: ${env.EUREKA_URL}"
                         echo "=========================================="
                         echo "Service Endpoints from SSM:"
                         echo "  Service1: ${env.SERVICE1_URL}"
@@ -315,6 +336,7 @@ pipeline {
                     echo "🎯 Gateway is now routing requests to:"
                     echo "   - Service1: ${env.SERVICE1_URL}"
                     echo "   - Service2: ${env.SERVICE2_URL}"
+                    echo "   - Eureka: ${env.EUREKA_URL}"
                 }
             }
         }

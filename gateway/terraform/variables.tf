@@ -71,3 +71,10 @@ variable "instance_type" {
   type        = string
   default     = "t3.micro"
 }
+
+# Service-specific variables
+variable "eureka_url" {
+  description = "Eureka server URL"
+  type        = string
+  default     = ""
+}
