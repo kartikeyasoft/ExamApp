@@ -83,23 +83,18 @@ pipeline {
             }
         }
 
-         stage('Deploy to Nexus') {
+        stage('Deploy to Nexus') {
             steps {
-                dir('service2') {
+                dir('eureka') {
                     script {
                         def jarFile = "target/eureka-${env.SERVICE_VERSION}.jar"
-                        def nexusBaseUrl = env.NEXUS_URL.trim().replaceAll('/$', '')
                         def nexusPath = "${env.NEXUS_URL}/com/ksapp/eureka/${env.SERVICE_VERSION}/eureka-${env.SERVICE_VERSION}.jar"
-                        
-                        echo "Uploading to: ${nexusPath}"
                         
                         withCredentials([usernamePassword(credentialsId: 'nexus-credentials', 
                                                         usernameVariable: 'NEXUS_USER', 
                                                         passwordVariable: 'NEXUS_PASS')]) {
                             sh """
-                                curl -v -f -u \${NEXUS_USER}:\${NEXUS_PASS} \
-                                    --upload-file ${jarFile} \
-                                    ${nexusPath}
+                                curl -f -u ${NEXUS_USER}:${NEXUS_PASS} --upload-file ${jarFile} ${nexusPath}
                             """
                         }
                     }
