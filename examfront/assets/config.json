@@ -1,6 +1,0 @@
-{
-  "api_url": "http://34.238.139.251:8080",
-  "image_url": "http://52.203.11.31:9001",
-  "rabbitmq_url": "http://192.168.29.66:8001",
-  "upload_img_enabled": false
-}
