@@ -11,8 +11,7 @@ pipeline {
     environment {
         PATH = "/usr/bin:${env.PATH}"        
         NEXUS_CREDS = credentials('nexus-credentials')
-        AWS_ACCESS_KEY_ID = credentials('aws-access-key-id')
-        AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')    
+        AWS_CONFIG_FILE = '/var/lib/jenkins/.aws/config'
         DB_USERNAME = credentials('db-username')
         DB_PASSWORD = credentials('db-password')
     }
