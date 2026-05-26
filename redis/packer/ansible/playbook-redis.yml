@@ -55,22 +55,22 @@
         mode: "0644"
         content: |
           server:
-            port: \${SERVER_PORT:{{ service_port }}}
+            port: ${SERVER_PORT:{{ service_port }}}
           
           spring:
             application:
-              name: \${SPRING_APP_NAME:{{ app_name }}}
+              name: ${SPRING_APP_NAME:{{ app_name }}}
             redis:
-              host: \${REDIS_HOST:{{ redis_host }}}
-              port: \${REDIS_PORT:{{ redis_port }}}
+              host: ${REDIS_HOST:{{ redis_host }}}
+              port: ${REDIS_PORT:{{ redis_port }}}
           
           eureka:
             client:
               service-url:
-                defaultZone: \${EUREKA_URL}
+                defaultZone: ${EUREKA_URL}
             instance:
               prefer-ip-address: true
-              instance-id: \${spring.cloud.client.ip-address}:\${server.port}
+              instance-id: ${spring.cloud.client.ip-address}:${server.port}
           
           logging:
             level:
