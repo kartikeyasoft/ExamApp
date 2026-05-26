@@ -186,16 +186,43 @@ pipeline {
             when { expression { params.ACTION == 'destroy' } }
             steps {
                 script {
+                    // Get Eureka URL from SSM if it exists (for destroy)
+                    def eurekaUrl = ""
+                    try {
+                        def eurekaIp = sh(script: """
+                            aws ssm get-parameter \
+                                --name "/exam/eureka/ip" \
+                                --query 'Parameter.Value' \
+                                --output text 2>/dev/null || echo ""
+                        """, returnStdout: true).trim()
+                        
+                        if (eurekaIp && eurekaIp != 'None' && eurekaIp != 'null' && eurekaIp != '') {
+                            eurekaUrl = "http://${eurekaIp}:${env.EUREKA_PORT}/eureka/"
+                            echo "✅ Retrieved Eureka URL for destroy: ${eurekaUrl}"
+                        } else {
+                            echo "⚠️ Eureka IP not found in SSM, using placeholder for destroy"
+                            eurekaUrl = "http://placeholder:8080/eureka/"
+                        }
+                    } catch (Exception e) {
+                        echo "⚠️ Could not retrieve Eureka URL, using placeholder for destroy"
+                        eurekaUrl = "http://placeholder:8080/eureka/"
+                    }
+                    
                     // Clean up Parameter Store entries on destroy
                     sh """
-                        aws ssm delete-parameter \
-                            --name "/exam/redis/ip" 2>/dev/null || true
-                        aws ssm delete-parameter \
-                            --name "/exam/redis/port" 2>/dev/null || true
+                        aws ssm delete-parameter --name "/exam/redis/ip" 2>/dev/null || true
+                        aws ssm delete-parameter --name "/exam/redis/port" 2>/dev/null || true
                     """
                 }
+                
                 dir('redis/terraform') {
-                    sh 'terraform destroy -auto-approve'
+                    sh """
+                        terraform destroy -auto-approve \
+                            -var="ami_id=${env.AMI_ID}" \
+                            -var="aws_region=${env.AWS_DEFAULT_REGION}" \
+                            -var="eureka_url=${eurekaUrl}" \
+                            -var="service_port=${env.SERVICE_PORT}"
+                    """
                 }
             }
         }
