@@ -10,6 +10,8 @@
     service_port: "{{ lookup('env', 'SERVICE_PORT') | default('1222') }}"
     eureka_port: "{{ lookup('env', 'EUREKA_PORT') | default('8761') }}"
     eureka_host: "{{ lookup('env', 'EUREKA_HOST') | default('192.168.29.63') }}"
+    redis_host: "localhost"
+    redis_port: "6379"
 
   tasks:
     - name: Install Java 17
@@ -36,7 +38,6 @@
         home: "/opt/{{ app_name }}"
         create_home: yes
         state: present
-      ignore_errors: yes
 
     - name: Create application directory
       file:
@@ -46,7 +47,7 @@
         group: "{{ app_user }}"
         mode: "0755"
 
-    - name: Create application.yml with environment variables support
+    - name: Create application.yml
       copy:
         dest: "/opt/{{ app_name }}/application.yml"
         owner: "{{ app_user }}"
@@ -54,27 +55,26 @@
         mode: "0644"
         content: |
           server:
-            port: "${SERVER_PORT:{{ service_port }}}"
+            port: ${SERVER_PORT:{{ service_port }}}
           
           spring:
             application:
-              name: "${SPRING_APP_NAME:{{ app_name }}}"
+              name: ${spring.application.name:{{ app_name }}}
             redis:
-              host: "${REDIS_HOST:localhost}"
-              port: "${REDIS_PORT:6379}"
+              host: ${spring.redis.host:{{ redis_host }}}
+              port: ${spring.redis.port:{{ redis_port }}}
           
           eureka:
             client:
               service-url:
-                defaultZone: "${EUREKA_URL}"
+                defaultZone: ${EUREKA_URL:http://{{ eureka_host }}:{{ eureka_port }}/eureka/}
             instance:
               prefer-ip-address: true
-              instance-id: "${spring.cloud.client.ip-address}:${server.port}"
+              instance-id: ${spring.cloud.client.ip-address}:${server.port}
           
           logging:
             level:
               com.ksapp.redis: INFO
-              org.springframework.cloud.netflix.eureka: DEBUG
           
           management:
             endpoints:
@@ -92,11 +92,12 @@
         group: "{{ app_user }}"
         mode: "0600"
         content: |
+          # Redis Service Environment Variables
           EUREKA_URL=http://{{ eureka_host }}:{{ eureka_port }}/eureka/
           SERVER_PORT={{ service_port }}
           SPRING_APP_NAME={{ app_name }}
-          REDIS_HOST=localhost
-          REDIS_PORT=6379
+          REDIS_HOST={{ redis_host }}
+          REDIS_PORT={{ redis_port }}
 
     - name: Download Redis JAR from Nexus
       get_url:
@@ -111,17 +112,7 @@
       register: download_result
       until: download_result is success
 
-    - name: Verify JAR file was downloaded
-      stat:
-        path: "/opt/{{ app_name }}/{{ app_name }}.jar"
-      register: jar_file
-
-    - name: Fail if JAR not downloaded
-      fail:
-        msg: "JAR file was not downloaded successfully from Nexus"
-      when: not jar_file.stat.exists or jar_file.stat.size == 0
-
-    - name: Create systemd service file with environment file support
+    - name: Create systemd service file
       copy:
         dest: "/etc/systemd/system/{{ app_name }}.service"
         mode: "0644"
@@ -136,15 +127,18 @@
           Group={{ app_user }}
           WorkingDirectory=/opt/{{ app_name }}
           EnvironmentFile=-/opt/{{ app_name }}/{{ app_name }}.env
-          ExecStart=/usr/bin/java -jar /opt/{{ app_name }}/{{ app_name }}.jar
+          ExecStart=/bin/bash -c 'exec /usr/bin/java \
+            -DEUREKA_URL=${EUREKA_URL} \
+            -DSERVER_PORT=${SERVER_PORT} \
+            -Dspring.application.name=${SPRING_APP_NAME} \
+            -Dspring.redis.host=${REDIS_HOST} \
+            -Dspring.redis.port=${REDIS_PORT} \
+            -jar /opt/{{ app_name }}/{{ app_name }}.jar'
           SuccessExitStatus=143
           Restart=always
           RestartSec=10
           StandardOutput=journal
           StandardError=journal
-          
-          TimeoutStartSec=300
-          TimeoutStopSec=120
           
           [Install]
           WantedBy=multi-user.target
@@ -153,14 +147,10 @@
       systemd:
         daemon_reload: yes
 
-    - name: Enable service
+    - name: Enable and start service
       systemd:
         name: "{{ app_name }}"
         enabled: yes
-
-    - name: Start service
-      systemd:
-        name: "{{ app_name }}"
         state: started
 
     - name: Display service status
@@ -172,6 +162,6 @@
           Service Name: {{ app_name }}
           Service Port: {{ service_port }}
           Eureka URL: http://{{ eureka_host }}:{{ eureka_port }}/eureka/
-          Redis Host: localhost
-          Redis Port: 6379
+          Redis Host: {{ redis_host }}
+          Redis Port: {{ redis_port }}
           ========================================
