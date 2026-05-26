@@ -49,35 +49,29 @@
       copy:
         content: |
           server:
-            port: \${SERVER_PORT:-{{ service_port }}}
-          
-          spring:
-            application:
-              name: \${SPRING_APP_NAME:-{{ app_name }}}
-            redis:
-              host: \${REDIS_HOST:localhost}
-              port: \${REDIS_PORT:6379}
-          
-          eureka:
-            client:
-              service-url:
-                defaultZone: \${EUREKA_URL:-http://localhost:{{ eureka_port }}/eureka/}
-              fetch-registry: true
-              register-with-eureka: true
-            instance:
-              prefer-ip-address: true
-              instance-id: \${spring.cloud.client.ip-address}:\${server.port}
-              hostname: \${spring.cloud.client.ip-address}
-          
-          logging:
-            level:
-              com.ksapp.redis: INFO
-          
-          management:
-            endpoints:
-              web:
-                exposure:
-                  include: health,info
+            port: "${SERVER_PORT:1222}"
+
+        eureka:
+          client:
+            service-url:
+              defaultZone: "${EUREKA_URL:http://192.168.29.63:8761/eureka/}"
+          instance:
+            prefer-ip-address: true
+            instance-id: "${spring.cloud.client.ip-address}:${server.port}"
+
+        logging:
+          level:
+            com.ksapp.redis: INFO
+            org.springframework.cloud.netflix.eureka: DEBUG
+
+        management:
+          endpoints:
+            web:
+              exposure:
+                include: health,info
+          endpoint:
+            health:
+              show-details: always
         dest: "/opt/{{ app_name }}/application.yml"
         owner: "{{ app_user }}"
         group: "{{ app_user }}"
@@ -158,22 +152,6 @@
       systemd:
         name: "{{ app_name }}"
         state: started
-
-    - name: Clean up logs before AMI creation
-      shell: |
-        journalctl --rotate
-        journalctl --vacuum-time=1s
-        rm -rf /var/log/journal/*
-        truncate -s 0 /var/log/syslog 2>/dev/null || true
-        truncate -s 0 /var/log/cloud-init.log 2>/dev/null || true
-        truncate -s 0 /var/log/cloud-init-output.log 2>/dev/null || true
-        rm -f /root/.bash_history
-        rm -f /home/ubuntu/.bash_history
-        rm -rf /tmp/*
-        apt-get clean
-      ignore_errors: yes
-      args:
-        warn: no
 
     - name: Display service status
       debug:

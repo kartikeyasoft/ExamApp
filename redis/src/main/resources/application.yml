@@ -1,13 +1,6 @@
 server:
   port: "${SERVER_PORT:1222}"
 
-spring:
-  application:
-    name: "${SPRING_APP_NAME:redis}"
-  redis:
-    host: "${REDIS_HOST:localhost}"
-    port: "${REDIS_PORT:6379}"
-
 eureka:
   client:
     service-url:
