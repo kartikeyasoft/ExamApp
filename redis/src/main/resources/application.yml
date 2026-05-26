@@ -1,0 +1,32 @@
+server:
+  port: "${SERVER_PORT:1222}"
+
+spring:
+  application:
+    name: "${SPRING_APP_NAME:redis}"
+  redis:
+    host: "${REDIS_HOST:localhost}"
+    port: "${REDIS_PORT:6379}"
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_URL:http://192.168.29.63:8761/eureka/}
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.cloud.client.ip-address}:${server.port}
+
+logging:
+  level:
+    com.ksapp.redis: INFO
+    org.springframework.cloud.netflix.eureka: DEBUG
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+      show-details: always
