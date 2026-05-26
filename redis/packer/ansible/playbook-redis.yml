@@ -9,6 +9,7 @@
     nexus_url: "{{ lookup('env', 'NEXUS_URL') }}"
     service_port: "{{ lookup('env', 'SERVICE_PORT') | default('1222') }}"
     eureka_port: "{{ lookup('env', 'EUREKA_PORT') | default('8761') }}"
+    eureka_host: "{{ lookup('env', 'EUREKA_HOST') | default('192.168.29.63') }}"
 
   tasks:
     - name: Install Java 17
@@ -47,46 +48,55 @@
 
     - name: Create application.yml with environment variables support
       copy:
-        content: |
-          server:
-            port: "${SERVER_PORT:1222}"
-
-        eureka:
-          client:
-            service-url:
-              defaultZone: "${EUREKA_URL:http://192.168.29.63:8761/eureka/}"
-          instance:
-            prefer-ip-address: true
-            instance-id: "${spring.cloud.client.ip-address}:${server.port}"
-
-        logging:
-          level:
-            com.ksapp.redis: INFO
-            org.springframework.cloud.netflix.eureka: DEBUG
-
-        management:
-          endpoints:
-            web:
-              exposure:
-                include: health,info
-          endpoint:
-            health:
-              show-details: always
         dest: "/opt/{{ app_name }}/application.yml"
         owner: "{{ app_user }}"
         group: "{{ app_user }}"
         mode: "0644"
+        content: |
+          server:
+            port: "${SERVER_PORT:{{ service_port }}}"
+          
+          spring:
+            application:
+              name: "${SPRING_APP_NAME:{{ app_name }}}"
+            redis:
+              host: "${REDIS_HOST:localhost}"
+              port: "${REDIS_PORT:6379}"
+          
+          eureka:
+            client:
+              service-url:
+                defaultZone: "${EUREKA_URL:http://{{ eureka_host }}:{{ eureka_port }}/eureka/}"
+            instance:
+              prefer-ip-address: true
+              instance-id: "${spring.cloud.client.ip-address}:${server.port}"
+          
+          logging:
+            level:
+              com.ksapp.redis: INFO
+              org.springframework.cloud.netflix.eureka: DEBUG
+          
+          management:
+            endpoints:
+              web:
+                exposure:
+                  include: health,info
+            endpoint:
+              health:
+                show-details: always
 
     - name: Create environment file
       copy:
-        content: |
-          EUREKA_URL=http://localhost:{{ eureka_port }}/eureka/
-          SERVER_PORT={{ service_port }}
-          SPRING_APP_NAME={{ app_name }}
         dest: "/opt/{{ app_name }}/{{ app_name }}.env"
         owner: "{{ app_user }}"
         group: "{{ app_user }}"
         mode: "0600"
+        content: |
+          EUREKA_URL=http://{{ eureka_host }}:{{ eureka_port }}/eureka/
+          SERVER_PORT={{ service_port }}
+          SPRING_APP_NAME={{ app_name }}
+          REDIS_HOST=localhost
+          REDIS_PORT=6379
 
     - name: Download Redis JAR from Nexus
       get_url:
@@ -113,10 +123,12 @@
 
     - name: Create systemd service file with environment file support
       copy:
+        dest: "/etc/systemd/system/{{ app_name }}.service"
+        mode: "0644"
         content: |
           [Unit]
           Description=Redis API Service
-          After=network.target
+          After=network.target redis-server.service
           Wants=network.target
           
           [Service]
@@ -136,8 +148,6 @@
           
           [Install]
           WantedBy=multi-user.target
-        dest: "/etc/systemd/system/{{ app_name }}.service"
-        mode: "0644"
 
     - name: Reload systemd
       systemd:
@@ -161,5 +171,7 @@
           ========================================
           Service Name: {{ app_name }}
           Service Port: {{ service_port }}
-          Eureka URL: Will be updated dynamically from SSM at boot
+          Eureka URL: http://{{ eureka_host }}:{{ eureka_port }}/eureka/
+          Redis Host: localhost
+          Redis Port: 6379
           ========================================
