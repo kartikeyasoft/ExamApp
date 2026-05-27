@@ -90,49 +90,54 @@ resource "aws_instance" "redis" {
     
     echo "Starting Redis instance configuration..."
     
-    # Wait for cloud-init to complete
-    sleep 30
+    # Wait for cloud-init to complete safely
+    sleep 10
     
-    # Extract Eureka IP from URL cleanly
-    EUREKA_IP=$$(echo "${var.eureka_url}" | sed -E 's|https?://([^:/]+).*|\1|')
-    echo "Eureka IP: $$EUREKA_IP"
-    
-    # Update the environment file (This is what Spring Boot reads natively now)
+    # 1. Update the environment file cleanly
     if [ -f /opt/redis/redis.env ]; then
-        echo "Updating /opt/redis/redis.env"
+        echo "Updating /opt/redis/redis.env..."
+        # Replace localhost with the live variable URL
         sed -i "s|http://localhost:8761/eureka/|${var.eureka_url}|g" /opt/redis/redis.env
-        echo "✅ Updated redis.env:"
+        echo "✅ Updated redis.env content:"
         cat /opt/redis/redis.env
     else
-        echo "ERROR: /opt/redis/redis.env not found!"
-        exit 1
-  fi
-    
-    # Update systemd service unit override fallback string just in case
-    if [ -f /etc/systemd/system/redis.service ]; then
-        echo "Updating /etc/systemd/system/redis.service"
-        sed -i "s|http://localhost:8761/eureka/|${var.eureka_url}|g" /etc/systemd/system/redis.service
-        echo "✅ Updated redis.service unit"
+        echo "WARNING: /opt/redis/redis.env not found, creating it..."
+        mkdir -p /opt/redis
+        echo "EUREKA_URL=${var.eureka_url}" > /opt/redis/redis.env
     fi
     
-    # Set proper permissions
+    # 2. Force-fix the hardcoded systemd service file string
+    if [ -f /etc/systemd/system/redis.service ]; then
+        echo "Patching /etc/systemd/system/redis.service..."
+        
+        # This replaces the hardcoded localhost URL inside the Java flags with the live variable input
+        sed -i "s|http://localhost:8761/eureka/|${var.eureka_url}|g" /etc/systemd/system/redis.service
+        
+        echo "✅ Systemd file patched."
+    else
+        echo "ERROR: /etc/systemd/system/redis.service not found!"
+        exit 1
+    fi
+    
+    # 3. Secure file permissions
     chown -R redis:redis /opt/redis/ 2>/dev/null || true
     
-    # Restart the service
-    echo "Restarting redis service..."
+    # 4. Reload and restart systemd lifecycle tracking
+    echo "Reloading systemd and restarting service..."
     systemctl daemon-reload
     systemctl restart redis
     
-    # Verify service is running
+    # 5. Validation verification loop
     sleep 5
     if systemctl is-active --quiet redis; then
-        echo "✅ Redis service is running successfully!"
+        echo "✅ Redis service running smoothly."
+        echo "Checking current running process arguments:"
+        ps aux | grep java | grep redis || true
     else
-        echo "⚠️ Redis service failed to start, checking logs..."
+        echo "❌ Redis service failed to initialize."
         journalctl -u redis -n 20 --no-pager
+        exit 1
     fi
-    
-    echo "✅ Redis configured with Eureka URL: ${var.eureka_url}"
   EOF
 
   tags = {
