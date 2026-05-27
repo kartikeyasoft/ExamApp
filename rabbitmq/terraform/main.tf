@@ -32,7 +32,6 @@ resource "aws_security_group" "rabbitmq" {
   description = "Security group for RabbitMQ API service"
   vpc_id      = var.vpc_id
 
-  # RabbitMQ Management UI port
   ingress {
     from_port   = 15672
     to_port     = 15672
@@ -41,7 +40,6 @@ resource "aws_security_group" "rabbitmq" {
     description = "RabbitMQ Management UI port"
   }
 
-  # Spring Boot RabbitMQ API port
   ingress {
     from_port   = var.service_port
     to_port     = var.service_port
@@ -50,7 +48,6 @@ resource "aws_security_group" "rabbitmq" {
     description = "Spring Boot RabbitMQ API port"
   }
 
-  # RabbitMQ broker port
   ingress {
     from_port   = 5672
     to_port     = 5672
@@ -59,7 +56,6 @@ resource "aws_security_group" "rabbitmq" {
     description = "RabbitMQ broker port"
   }
 
-  # SSH access
   ingress {
     from_port   = 22
     to_port     = 22
@@ -68,7 +64,6 @@ resource "aws_security_group" "rabbitmq" {
     description = "SSH access"
   }
 
-  # Outbound internet access
   egress {
     from_port   = 0
     to_port     = 0
@@ -102,48 +97,40 @@ resource "aws_instance" "rabbitmq" {
     echo "Starting RabbitMQ API instance configuration..."
     sleep 10
     
-    # Extract Redis IP from URL
-    REDIS_IP=$(echo "${var.redis_url}" | sed -E 's|https?://([^:/]+).*|\1|')
+    REDIS_IP=$(echo "${var.redis_url}" | sed -E 's|https?://([^:/]+).*|\\1|')
     
-    echo "Redis IP: ${REDIS_IP}"
+    echo "Redis IP: $${REDIS_IP}"
     
-    # Ensure directory exists
     mkdir -p /opt/rabbitmq
     
-    # Create environment file
     cat > /opt/rabbitmq/rabbitmq.env << ENVEOF
     EUREKA_URL=${var.eureka_url}
     SERVER_PORT=${var.service_port}
     SPRING_APP_NAME=rabbitmq
-    REDIS_HOST=${REDIS_IP}
+    REDIS_HOST=$${REDIS_IP}
     REDIS_PORT=6379
-    REDIS_API_URL=http://${REDIS_IP}:1222
+    REDIS_API_URL=http://$${REDIS_IP}:1222
     REDIS_SERVICE_URL=${var.redis_url}
     EUREKA_CLIENT_REGISTER_WITH_EUREKA=true
     EUREKA_CLIENT_FETCH_REGISTRY=true
     EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
     ENVEOF
     
-    # Set permissions
     chown -R rabbitmq:rabbitmq /opt/rabbitmq/
     chmod 600 /opt/rabbitmq/rabbitmq.env
     
-    # Create application.yml
     cat > /opt/rabbitmq/application.yml << 'APPEOF'
     server:
       port: \${SERVER_PORT:-8001}
-    
     spring:
       application:
         name: \${SPRING_APP_NAME:-rabbitmq}
       redis:
         host: \${REDIS_HOST:-localhost}
         port: \${REDIS_PORT:-6379}
-    
     redis:
       api:
         url: \${REDIS_API_URL:-http://localhost:1222}
-    
     eureka:
       client:
         service-url:
@@ -151,7 +138,6 @@ resource "aws_instance" "rabbitmq" {
       instance:
         prefer-ip-address: true
         instance-id: \${spring.cloud.client.ip-address}:\${server.port}
-    
     management:
       endpoints:
         web:
@@ -165,13 +151,10 @@ resource "aws_instance" "rabbitmq" {
     chown rabbitmq:rabbitmq /opt/rabbitmq/application.yml
     chmod 644 /opt/rabbitmq/application.yml
     
-    # Create systemd service
     cat > /etc/systemd/system/rabbitmq.service << 'SERVICEEOF'
     [Unit]
     Description=RabbitMQ API Service
     After=network.target rabbitmq-server.service
-    Wants=network.target
-    
     [Service]
     User=rabbitmq
     Group=rabbitmq
@@ -181,20 +164,16 @@ resource "aws_instance" "rabbitmq" {
     Restart=always
     RestartSec=10
     SuccessExitStatus=143
-    StandardOutput=journal
-    StandardError=journal
-    
     [Install]
     WantedBy=multi-user.target
     SERVICEEOF
     
-    # Reload systemd and start service
     systemctl daemon-reload
     systemctl restart rabbitmq
     
-    # Verification
     sleep 10
-    if systemctl is-active --quiet rabbitmq; then
+    if systemctl is-active --quiet rabbitmq
+    then
         echo "✅ RabbitMQ running on port ${var.service_port}!"
     else
         echo "⚠️ RabbitMQ failed to start"
