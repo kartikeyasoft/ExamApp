@@ -179,9 +179,9 @@
           Redis Port: {{ redis_port }}
           ========================================
 
-      # ✅ ADD THIS HANDLERS SECTION AT THE END
-        handlers:
-          - name: restart redis
-            systemd:
-              name: redis-server
-              state: restarted
+  # ✅ ADD THIS HANDLERS SECTION AT THE END
+  handlers:
+    - name: restart redis
+      systemd:
+        name: redis-server
+        state: restarted
