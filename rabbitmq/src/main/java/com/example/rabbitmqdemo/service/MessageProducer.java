@@ -1,4 +1,4 @@
-package com.ksapp.rabbitmqdemo.service;
+package com.example.rabbitmqdemo.service;
 
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,7 +9,7 @@ public class MessageProducer {
     @Autowired
     private RabbitTemplate rabbitTemplate;
 
-    public void send(String message) {
-        rabbitTemplate.convertAndSend("my-exchange", "my-routing-key", message);
-    }
+//    public void send(String message) {
+//        rabbitTemplate.convertAndSend("message-queue", message);
+//    }
 }
