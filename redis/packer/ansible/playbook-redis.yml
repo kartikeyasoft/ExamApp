@@ -130,28 +130,29 @@
       register: download_result
       until: download_result is success
 
-    - name: Create systemd service file (Cleaned Up Native Variables)
+    - name: Create systemd service file
       copy:
         dest: "/etc/systemd/system/{{ app_name }}.service"
-        mode: "0644"
         content: |
           [Unit]
           Description=Redis API Service
-          After=network.target redis-server.service
-          Wants=network.target
+          After=network.target
           
           [Service]
           User={{ app_user }}
           Group={{ app_user }}
           WorkingDirectory=/opt/{{ app_name }}
           EnvironmentFile=/opt/{{ app_name }}/{{ app_name }}.env
-          # Spring natively maps EnvironmentFile variables to your application.yml placeholders
-          ExecStart=/usr/bin/java -jar /opt/{{ app_name }}/{{ app_name }}.jar
-          SuccessExitStatus=143
+          ExecStart=/usr/bin/java \
+            -Dspring.redis.host=${REDIS_HOST} \
+            -Dspring.redis.port=${REDIS_PORT} \
+            -Dserver.port=${SERVER_PORT} \
+            -Dspring.application.name=${SPRING_APP_NAME} \
+            -Deureka.client.service-url.defaultZone=${EUREKA_URL} \
+            -jar /opt/{{ app_name }}/{{ app_name }}.jar
           Restart=always
           RestartSec=10
-          StandardOutput=journal
-          StandardError=journal
+          SuccessExitStatus=143
           
           [Install]
           WantedBy=multi-user.target

@@ -9,6 +9,9 @@
     nexus_url: "{{ lookup('env', 'NEXUS_URL') }}"
     service_port: "{{ lookup('env', 'SERVICE_PORT') | default('8001') }}"
     eureka_port: "{{ lookup('env', 'EUREKA_PORT') | default('8761') }}"
+    # ✅ ADD Redis variables
+    redis_host: "localhost"
+    redis_port: "6379"
 
   tasks:
     - name: Install Java 17
@@ -63,6 +66,10 @@
           spring:
             application:
               name: ${SPRING_APP_NAME:{{ app_name }}}
+            # ✅ ADD Redis configuration
+            redis:
+              host: ${REDIS_HOST:{{ redis_host }}}
+              port: ${REDIS_PORT:{{ redis_port }}}
           
           eureka:
             client:
@@ -91,6 +98,10 @@
           EUREKA_URL=http://localhost:{{ eureka_port }}/eureka/
           SERVER_PORT={{ service_port }}
           SPRING_APP_NAME={{ app_name }}
+          # ✅ ADD Redis host and port
+          REDIS_HOST={{ redis_host }}
+          REDIS_PORT={{ redis_port }}
+          # ✅ Keep HTTP API URL for service discovery
           REDIS_SERVICE_URL=http://localhost:1222/redis
           EUREKA_CLIENT_REGISTER_WITH_EUREKA=true
           EUREKA_CLIENT_FETCH_REGISTRY=true
@@ -134,7 +145,14 @@
           Group={{ app_user }}
           WorkingDirectory=/opt/{{ app_name }}
           EnvironmentFile=/opt/{{ app_name }}/{{ app_name }}.env
-          ExecStart=/usr/bin/java -jar /opt/{{ app_name }}/{{ app_name }}.jar
+          # ✅ ADD Redis Java properties
+          ExecStart=/usr/bin/java \
+            -Dspring.redis.host=${REDIS_HOST} \
+            -Dspring.redis.port=${REDIS_PORT} \
+            -Dserver.port=${SERVER_PORT} \
+            -Dspring.application.name=${SPRING_APP_NAME} \
+            -Deureka.client.service-url.defaultZone=${EUREKA_URL} \
+            -jar /opt/{{ app_name }}/{{ app_name }}.jar
           SuccessExitStatus=143
           Restart=always
           RestartSec=10
