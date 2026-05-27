@@ -45,7 +45,7 @@ resource "aws_security_group" "rabbitmq" {
     to_port     = 5672
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-    description = "RabbitMQ server port"
+    description = "RabbitMQ broker port"
   }
 
   ingress {
@@ -88,8 +88,18 @@ resource "aws_instance" "rabbitmq" {
 
   user_data = <<-EOF
     #!/bin/bash
-    # Create environment file with Eureka URL from SSM
-    cat > /opt/rabbitmq/rabbitmq.env << 'ENVEOF'
+    set -e
+    
+    echo "Starting RabbitMQ API instance configuration..."
+    
+    # Wait for cloud-init tasks to step aside
+    sleep 10
+    
+    # Ensure directory framework exists
+    mkdir -p /opt/rabbitmq
+    
+    # Create environment file (Removed single quotes so Terraform can interpolate variables)
+    cat > /opt/rabbitmq/rabbitmq.env << ENVEOF
     EUREKA_URL=${var.eureka_url}
     SERVER_PORT=${var.service_port}
     SPRING_APP_NAME=rabbitmq
@@ -99,25 +109,33 @@ resource "aws_instance" "rabbitmq" {
     EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
     ENVEOF
     
-    # Set proper permissions
-    chown rabbitmq:rabbitmq /opt/rabbitmq/rabbitmq.env 2>/dev/null || true
-    chmod 600 /opt/rabbitmq/rabbitmq.env 2>/dev/null || true
+    # Set secure permissions on target files
+    chown -R rabbitmq:rabbitmq /opt/rabbitmq/
+    chmod 600 /opt/rabbitmq/rabbitmq.env
     
-    # Create systemd override directory
-    mkdir -p /etc/systemd/system/rabbitmq.service.d
+    # Force runtime patch validation check on systemd unit file if hardcoded strings exist
+    if [ -f /etc/systemd/system/rabbitmq.service ]; then
+        echo "Validating systemd API wrapper config..."
+        sed -i "s|http://localhost:8761/eureka/|${var.eureka_url}|g" /etc/systemd/system/rabbitmq.service
+    fi
     
-    # Create override config to load environment file
-    cat > /etc/systemd/system/rabbitmq.service.d/override.conf << 'SYSTEMDEOF'
-    [Service]
-    EnvironmentFile=/opt/rabbitmq/rabbitmq.env
-    SYSTEMDEOF
-    
-    # Reload systemd and restart service
+    # Reload background daemons and restart the API layer (not the backend broker)
+    echo "Reloading systemd manager configurations..."
     systemctl daemon-reload
-    systemctl restart rabbitmq
     
-    echo "RabbitMQ configured with Eureka URL: ${var.eureka_url}"
-    echo "RabbitMQ configured with Redis URL: ${var.redis_url}"
+    echo "Restarting application service layers..."
+    systemctl restart rabbitmq || systemctl start rabbitmq
+    
+    # Verification validation
+    sleep 5
+    if systemctl is-active --quiet rabbitmq; then
+        echo "✅ RabbitMQ App API Service running cleanly!"
+    else
+        echo "⚠️ RabbitMQ App API Service failed to confirm active state. Checking logs..."
+        journalctl -u rabbitmq -n 20 --no-pager
+    fi
+    
+    echo "✅ Configuration hook finalized."
   EOF
 
   tags = {
@@ -131,4 +149,3 @@ resource "aws_instance" "rabbitmq" {
     create_before_destroy = true
   }
 }
-

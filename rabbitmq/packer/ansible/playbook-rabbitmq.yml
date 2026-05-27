@@ -11,7 +11,6 @@
     eureka_port: "{{ lookup('env', 'EUREKA_PORT') | default('8761') }}"
 
   tasks:
-
     - name: Install Java 17
       apt:
         name: openjdk-17-jre-headless
@@ -23,7 +22,6 @@
         name: rabbitmq-server
         state: present
 
- 
     - name: Start and enable RabbitMQ
       systemd:
         name: rabbitmq-server
@@ -52,35 +50,39 @@
         group: "{{ app_user }}"
         mode: "0755"
 
-    - name: Create application.yml with environment variables support
+    - name: Create application.yml with native environment mapping
       copy:
+        dest: "/opt/{{ app_name }}/application.yml"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0644"
         content: |
           server:
-            port: \${SERVER_PORT:-{{ service_port }}}
+            port: ${SERVER_PORT:{{ service_port }}}
           
           spring:
             application:
-              name: \${SPRING_APP_NAME:-{{ app_name }}}
+              name: ${SPRING_APP_NAME:{{ app_name }}}
             rabbitmq:
-              host: \${RABBITMQ_HOST:localhost}
-              port: \${RABBITMQ_PORT:5672}
-              username: \${RABBITMQ_USERNAME:guest}
-              password: \${RABBITMQ_PASSWORD:guest}
+              host: ${RABBITMQ_HOST:localhost}
+              port: ${RABBITMQ_PORT:5672}
+              username: ${RABBITMQ_USERNAME:guest}
+              password: ${RABBITMQ_PASSWORD:guest}
           
           eureka:
             client:
               service-url:
-                defaultZone: \${EUREKA_URL:-http://localhost:{{ eureka_port }}/eureka/}
+                defaultZone: ${EUREKA_URL:http://localhost:{{ eureka_port }}/eureka/}
               fetch-registry: true
               register-with-eureka: true
             instance:
               prefer-ip-address: true
-              instance-id: \${spring.cloud.client.ip-address}:\${server.port}
-              hostname: \${spring.cloud.client.ip-address}
+              instance-id: ${spring.cloud.client.ip-address}:${server.port}
+              hostname: ${spring.cloud.client.ip-address}
           
           redis:
             service:
-              url: \${REDIS_SERVICE_URL:http://localhost:1222/redis}
+              url: ${REDIS_SERVICE_URL:http://localhost:1222/redis}
           
           logging:
             level:
@@ -91,22 +93,21 @@
               web:
                 exposure:
                   include: health,info
-        dest: "/opt/{{ app_name }}/application.yml"
-        owner: "{{ app_user }}"
-        group: "{{ app_user }}"
-        mode: "0644"
+            endpoint:
+              health:
+                show-details: always
 
     - name: Create environment file
       copy:
+        dest: "/opt/{{ app_name }}/{{ app_name }}.env"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0600"
         content: |
           EUREKA_URL=http://localhost:{{ eureka_port }}/eureka/
           SERVER_PORT={{ service_port }}
           SPRING_APP_NAME={{ app_name }}
           REDIS_SERVICE_URL=http://localhost:1222/redis
-        dest: "/opt/{{ app_name }}/{{ app_name }}.env"
-        owner: "{{ app_user }}"
-        group: "{{ app_user }}"
-        mode: "0600"
 
     - name: Download RabbitMQ JAR from Nexus
       get_url:
@@ -133,6 +134,8 @@
 
     - name: Create systemd service file with environment file support
       copy:
+        dest: "/etc/systemd/system/{{ app_name }}.service"
+        mode: "0644"
         content: |
           [Unit]
           Description=RabbitMQ API Service
@@ -143,7 +146,7 @@
           User={{ app_user }}
           Group={{ app_user }}
           WorkingDirectory=/opt/{{ app_name }}
-          EnvironmentFile=-/opt/{{ app_name }}/{{ app_name }}.env
+          EnvironmentFile=/opt/{{ app_name }}/{{ app_name }}.env
           ExecStart=/usr/bin/java -jar /opt/{{ app_name }}/{{ app_name }}.jar
           SuccessExitStatus=143
           Restart=always
@@ -156,21 +159,15 @@
           
           [Install]
           WantedBy=multi-user.target
-        dest: "/etc/systemd/system/{{ app_name }}.service"
-        mode: "0644"
 
     - name: Reload systemd
       systemd:
         daemon_reload: yes
 
-    - name: Enable service
+    - name: Enable and start service
       systemd:
         name: "{{ app_name }}"
         enabled: yes
-
-    - name: Start service
-      systemd:
-        name: "{{ app_name }}"
         state: started
 
     - name: Clean up logs before AMI creation
@@ -186,8 +183,6 @@
         rm -rf /tmp/*
         apt-get clean
       ignore_errors: yes
-      args:
-        warn: no
 
     - name: Display service status
       debug:
