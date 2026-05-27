@@ -43,6 +43,14 @@ resource "aws_security_group" "rabbitmq" {
   }
 
   ingress {
+    from_port   = 8001
+    to_port     = 8001
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+    description = "Spring Boot RabbitMQ API port"
+  }
+
+  ingress {
     from_port   = 5672
     to_port     = 5672
     protocol    = "tcp"
