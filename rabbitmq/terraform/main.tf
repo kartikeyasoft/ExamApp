@@ -124,18 +124,18 @@ resource "aws_instance" "rabbitmq" {
       application:
         name: rabbitmq
       redis:
-        host: ${REDIS_HOST}
-        port: ${REDIS_PORT}
+        host: \${REDIS_HOST}
+        port: \${REDIS_PORT}
     redis:
       api:
-        url: ${REDIS_API_URL}
+        url: \${REDIS_API_URL}
     eureka:
       client:
         service-url:
-          defaultZone: ${EUREKA_URL}
+          defaultZone: \${EUREKA_URL}
       instance:
         prefer-ip-address: true
-        instance-id: ${spring.cloud.client.ip-address}:${server.port}
+        instance-id: \${spring.cloud.client.ip-address}:\${server.port}
     management:
       endpoints:
         web:
@@ -191,4 +191,3 @@ resource "aws_instance" "rabbitmq" {
     create_before_destroy = true
   }
 }
-
