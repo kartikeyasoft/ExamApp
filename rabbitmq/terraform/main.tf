@@ -93,23 +93,21 @@ resource "aws_instance" "rabbitmq" {
   user_data = <<-EOF
     #!/bin/bash
     set -e
-    
     echo "Starting RabbitMQ API instance configuration..."
     sleep 10
     
-    REDIS_IP=$(echo "${var.redis_url}" | sed -E 's|https?://([^:/]+).*|\\1|')
-    
-    echo "Redis IP: $${REDIS_IP}"
+    REDIS_IP=$(echo "${var.redis_url}" | sed -E 's|https?://([^:/]+).*|\1|')
+    echo "Redis IP: $REDIS_IP"
     
     mkdir -p /opt/rabbitmq
     
-    cat > /opt/rabbitmq/rabbitmq.env << ENVEOF
+    cat > /opt/rabbitmq/rabbitmq.env << 'ENVEOF'
     EUREKA_URL=${var.eureka_url}
     SERVER_PORT=${var.service_port}
     SPRING_APP_NAME=rabbitmq
-    REDIS_HOST=$${REDIS_IP}
+    REDIS_HOST=$REDIS_IP
     REDIS_PORT=6379
-    REDIS_API_URL=http://$${REDIS_IP}:1222
+    REDIS_API_URL=http://$REDIS_IP:1222
     REDIS_SERVICE_URL=${var.redis_url}
     EUREKA_CLIENT_REGISTER_WITH_EUREKA=true
     EUREKA_CLIENT_FETCH_REGISTRY=true
@@ -121,23 +119,23 @@ resource "aws_instance" "rabbitmq" {
     
     cat > /opt/rabbitmq/application.yml << 'APPEOF'
     server:
-      port: \${SERVER_PORT:-8001}
+      port: 8001
     spring:
       application:
-        name: \${SPRING_APP_NAME:-rabbitmq}
+        name: rabbitmq
       redis:
-        host: \${REDIS_HOST:-localhost}
-        port: \${REDIS_PORT:-6379}
+        host: ${REDIS_HOST}
+        port: ${REDIS_PORT}
     redis:
       api:
-        url: \${REDIS_API_URL:-http://localhost:1222}
+        url: ${REDIS_API_URL}
     eureka:
       client:
         service-url:
-          defaultZone: \${EUREKA_URL}
+          defaultZone: ${EUREKA_URL}
       instance:
         prefer-ip-address: true
-        instance-id: \${spring.cloud.client.ip-address}:\${server.port}
+        instance-id: ${spring.cloud.client.ip-address}:${server.port}
     management:
       endpoints:
         web:
@@ -174,14 +172,12 @@ resource "aws_instance" "rabbitmq" {
     sleep 10
     if systemctl is-active --quiet rabbitmq
     then
-        echo "✅ RabbitMQ running on port ${var.service_port}!"
+      echo "RabbitMQ running successfully on port ${var.service_port}!"
     else
-        echo "⚠️ RabbitMQ failed to start"
-        journalctl -u rabbitmq -n 20 --no-pager
-        exit 1
+      echo "RabbitMQ failed to start"
+      journalctl -u rabbitmq -n 20 --no-pager
+      exit 1
     fi
-    
-    echo "✅ Configuration completed."
   EOF
 
   tags = {
