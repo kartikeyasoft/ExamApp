@@ -92,58 +92,123 @@ resource "aws_instance" "rabbitmq" {
   vpc_security_group_ids = [aws_security_group.rabbitmq.id]
   key_name               = var.key_name
 
-  user_data = <<-EOF
-    #!/bin/bash
-    set -e
-    
-    echo "Starting RabbitMQ API instance configuration..."
-    
-    # Wait for cloud-init tasks to step aside
-    sleep 10
-    
-    # Ensure directory framework exists
-    mkdir -p /opt/rabbitmq
-    
-    # Create environment file (Removed single quotes so Terraform can interpolate variables)
-    cat > /opt/rabbitmq/rabbitmq.env << ENVEOF
-    EUREKA_URL=${var.eureka_url}
-    SERVER_PORT=${var.service_port}
-    SPRING_APP_NAME=rabbitmq
-    REDIS_SERVICE_URL=${var.redis_url}
-    EUREKA_CLIENT_REGISTER_WITH_EUREKA=true
-    EUREKA_CLIENT_FETCH_REGISTRY=true
-    EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
-    ENVEOF
-    
-    # Set secure permissions on target files
-    chown -R rabbitmq:rabbitmq /opt/rabbitmq/
-    chmod 600 /opt/rabbitmq/rabbitmq.env
-    
-    # Force runtime patch validation check on systemd unit file if hardcoded strings exist
-    if [ -f /etc/systemd/system/rabbitmq.service ]; then
-        echo "Validating systemd API wrapper config..."
-        sed -i "s|http://localhost:8761/eureka/|${var.eureka_url}|g" /etc/systemd/system/rabbitmq.service
-    fi
-    
-    # Reload background daemons and restart the API layer (not the backend broker)
-    echo "Reloading systemd manager configurations..."
-    systemctl daemon-reload
-    
-    echo "Restarting application service layers..."
-    systemctl restart rabbitmq || systemctl start rabbitmq
-    
-    # Verification validation
-    sleep 5
-    if systemctl is-active --quiet rabbitmq; then
-        echo "✅ RabbitMQ App API Service running cleanly!"
-    else
-        echo "⚠️ RabbitMQ App API Service failed to confirm active state. Checking logs..."
-        journalctl -u rabbitmq -n 20 --no-pager
-    fi
-    
-    echo "✅ Configuration hook finalized."
-  EOF
-
+user_data = <<-EOF
+  #!/bin/bash
+  set -e
+  
+  echo "Starting RabbitMQ API instance configuration..."
+  
+  # Wait for cloud-init
+  sleep 10
+  
+  # Extract Redis IP from URL
+  REDIS_IP=$(echo "${var.redis_url}" | sed -E 's|https?://([^:/]+).*|\1|')
+  REDIS_PORT=$(echo "${var.redis_url}" | grep -oE ':[0-9]+' | head -1 | tr -d ':')
+  
+  echo "Redis IP: ${REDIS_IP}"
+  echo "Redis Port: ${REDIS_PORT}"
+  
+  # Ensure directory exists
+  mkdir -p /opt/rabbitmq
+  
+  # Create environment file with ALL Redis variables
+  cat > /opt/rabbitmq/rabbitmq.env << ENVEOF
+  EUREKA_URL=${var.eureka_url}
+  SERVER_PORT=${var.service_port}
+  SPRING_APP_NAME=rabbitmq
+  REDIS_HOST=${REDIS_IP}
+  REDIS_PORT=${REDIS_PORT}
+  REDIS_API_URL=http://${REDIS_IP}:1222
+  REDIS_SERVICE_URL=${var.redis_url}
+  EUREKA_CLIENT_REGISTER_WITH_EUREKA=true
+  EUREKA_CLIENT_FETCH_REGISTRY=true
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
+  ENVEOF
+  
+  # Set secure permissions
+  chown -R rabbitmq:rabbitmq /opt/rabbitmq/
+  chmod 600 /opt/rabbitmq/rabbitmq.env
+  
+  # Create application.yml
+  cat > /opt/rabbitmq/application.yml << APPEOF
+  server:
+    port: \${SERVER_PORT:8001}
+  
+  spring:
+    application:
+      name: \${SPRING_APP_NAME:rabbitmq}
+    redis:
+      host: \${REDIS_HOST:${REDIS_IP}}
+      port: \${REDIS_PORT:${REDIS_PORT}}
+  
+  redis:
+    api:
+      url: \${REDIS_API_URL:http://${REDIS_IP}:1222}
+  
+  eureka:
+    client:
+      service-url:
+        defaultZone: \${EUREKA_URL}
+    instance:
+      prefer-ip-address: true
+      instance-id: \${spring.cloud.client.ip-address}:\${server.port}
+  
+  management:
+    endpoints:
+      web:
+        exposure:
+          include: health,info
+    endpoint:
+      health:
+        show-details: always
+  APPEOF
+  
+  chown rabbitmq:rabbitmq /opt/rabbitmq/application.yml
+  chmod 644 /opt/rabbitmq/application.yml
+  
+  # Create systemd service
+  cat > /etc/systemd/system/rabbitmq.service << SERVICEEOF
+  [Unit]
+  Description=RabbitMQ API Service
+  After=network.target rabbitmq-server.service
+  Wants=network.target
+  
+  [Service]
+  User=rabbitmq
+  Group=rabbitmq
+  WorkingDirectory=/opt/rabbitmq
+  EnvironmentFile=/opt/rabbitmq/rabbitmq.env
+  ExecStart=/usr/bin/java \\
+    -Dspring.redis.host=\${REDIS_HOST} \\
+    -Dspring.redis.port=\${REDIS_PORT} \\
+    -Dredis.api.url=\${REDIS_API_URL} \\
+    -Dserver.port=\${SERVER_PORT} \\
+    -Dspring.application.name=\${SPRING_APP_NAME} \\
+    -Deureka.client.service-url.defaultZone=\${EUREKA_URL} \\
+    -jar /opt/rabbitmq/rabbitmq.jar
+  Restart=always
+  RestartSec=10
+  SuccessExitStatus=143
+  
+  [Install]
+  WantedBy=multi-user.target
+  SERVICEEOF
+  
+  # Reload and restart
+  systemctl daemon-reload
+  systemctl restart rabbitmq
+  
+  # Verification
+  sleep 10
+  if systemctl is-active --quiet rabbitmq; then
+      echo "✅ RabbitMQ App API Service running on port ${var.service_port}!"
+  else
+      echo "⚠️ RabbitMQ App API Service failed to start"
+      journalctl -u rabbitmq -n 20 --no-pager
+  fi
+  
+  echo "✅ Configuration completed."
+EOF
   tags = {
     Name        = "rabbitmq-${var.environment}"
     Environment = var.environment
