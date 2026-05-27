@@ -59,3 +59,16 @@ variable "service_port" {
   type        = number
   default     = 8001
 }
+
+# rabbitmq/terraform/variables.tf
+variable "redis_protocol_port" {
+  description = "Redis protocol port (6379)"
+  type        = string
+  default     = "6379"
+}
+
+variable "redis_api_port" {
+  description = "Redis API port (1222)"
+  type        = string
+  default     = "1222"
+}

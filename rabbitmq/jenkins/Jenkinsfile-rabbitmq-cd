@@ -22,6 +22,8 @@ pipeline {
                     env.NEXUS_URL = config.nexus.url
                     env.SERVICE_NAME = 'rabbitmq'
                     env.SERVICE_PORT = config.services.rabbitmq.defaultPort
+                    env.REDIS_API_PORT = config.services.redis.defaultPort        // 1222
+                    env.REDIS_PROTOCOL_PORT = config.services.redis.protocolPort
                     env.EUREKA_PORT = config.eureka.defaultPort
                     env.REDIS_PORT = config.services.redis.defaultPort
                     
@@ -161,7 +163,9 @@ pipeline {
                             -var="aws_region=${env.AWS_DEFAULT_REGION}" \
                             -var="eureka_url=${env.EUREKA_URL}" \
                             -var="redis_url=${env.REDIS_URL}" \
-                            -var="service_port=${env.SERVICE_PORT}"
+                            -var="service_port=${env.SERVICE_PORT}" \
+                            -var="redis_protocol_port=${env.REDIS_PROTOCOL_PORT}" \
+                            -var="redis_api_port=${env.REDIS_API_PORT}"
                     """
                 }
             }
