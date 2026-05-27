@@ -26,9 +26,11 @@ data "aws_ami" "rabbitmq" {
   }
 }
 
-# Security group for RabbitMQ
+
+# Security group for RabbitMQ (Updated with name_prefix)
 resource "aws_security_group" "rabbitmq" {
-  name        = "rabbitmq-sg-${var.environment}"
+  # Changed 'name' to 'name_prefix' to prevent duplicate name errors during replacement lifecycle steps
+  name_prefix = "rabbitmq-sg-${var.environment}-" 
   description = "Security group for RabbitMQ API service"
   vpc_id      = var.vpc_id
 
@@ -75,6 +77,11 @@ resource "aws_security_group" "rabbitmq" {
     Name        = "rabbitmq-sg-${var.environment}"
     Environment = var.environment
     Service     = "rabbitmq"
+  }
+
+  # Keeps things clean during hot replacements
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
