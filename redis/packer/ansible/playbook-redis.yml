@@ -111,7 +111,7 @@
       register: download_result
       until: download_result is success
 
-    - name: Create systemd service file
+    - name: Create systemd service file (with Java System Properties)
       copy:
         dest: "/etc/systemd/system/{{ app_name }}.service"
         mode: "0644"
@@ -126,7 +126,13 @@
           Group={{ app_user }}
           WorkingDirectory=/opt/{{ app_name }}
           EnvironmentFile=/opt/{{ app_name }}/{{ app_name }}.env
-          ExecStart=/usr/bin/java -jar /opt/{{ app_name }}/{{ app_name }}.jar
+          ExecStart=/bin/bash -c 'exec /usr/bin/java \
+            -DEUREKA_URL=${EUREKA_URL} \
+            -DSERVER_PORT=${SERVER_PORT} \
+            -Dspring.application.name=${SPRING_APP_NAME} \
+            -Dspring.redis.host=${REDIS_HOST} \
+            -Dspring.redis.port=${REDIS_PORT} \
+            -jar /opt/{{ app_name }}/{{ app_name }}.jar'
           SuccessExitStatus=143
           Restart=always
           RestartSec=10
