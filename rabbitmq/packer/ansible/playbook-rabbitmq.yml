@@ -50,7 +50,7 @@
         group: "{{ app_user }}"
         mode: "0755"
 
-    - name: Create application.yml with native environment mapping
+    - name: Create application.yml
       copy:
         dest: "/opt/{{ app_name }}/application.yml"
         owner: "{{ app_user }}"
@@ -63,30 +63,14 @@
           spring:
             application:
               name: ${SPRING_APP_NAME:{{ app_name }}}
-            rabbitmq:
-              host: ${RABBITMQ_HOST:localhost}
-              port: ${RABBITMQ_PORT:5672}
-              username: ${RABBITMQ_USERNAME:guest}
-              password: ${RABBITMQ_PASSWORD:guest}
           
           eureka:
             client:
               service-url:
-                defaultZone: ${EUREKA_URL:http://localhost:{{ eureka_port }}/eureka/}
-              fetch-registry: true
-              register-with-eureka: true
+                defaultZone: ${EUREKA_URL}
             instance:
               prefer-ip-address: true
               instance-id: ${spring.cloud.client.ip-address}:${server.port}
-              hostname: ${spring.cloud.client.ip-address}
-          
-          redis:
-            service:
-              url: ${REDIS_SERVICE_URL:http://localhost:1222/redis}
-          
-          logging:
-            level:
-              com.ksapp.rabbitmq: INFO
           
           management:
             endpoints:
@@ -108,6 +92,9 @@
           SERVER_PORT={{ service_port }}
           SPRING_APP_NAME={{ app_name }}
           REDIS_SERVICE_URL=http://localhost:1222/redis
+          EUREKA_CLIENT_REGISTER_WITH_EUREKA=true
+          EUREKA_CLIENT_FETCH_REGISTRY=true
+          EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
 
     - name: Download RabbitMQ JAR from Nexus
       get_url:
