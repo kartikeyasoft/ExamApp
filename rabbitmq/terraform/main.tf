@@ -27,19 +27,19 @@ data "aws_ami" "rabbitmq" {
 }
 
 
-# Security group for RabbitMQ (Updated with name_prefix)
+# Security group for RabbitMQ
 resource "aws_security_group" "rabbitmq" {
-  # Changed 'name' to 'name_prefix' to prevent duplicate name errors during replacement lifecycle steps
   name_prefix = "rabbitmq-sg-${var.environment}-" 
   description = "Security group for RabbitMQ API service"
   vpc_id      = var.vpc_id
 
+  # Combined rule: Handles both API Port and Management UI on 15672
   ingress {
-    from_port   = var.service_port
-    to_port     = var.service_port
+    from_port   = 15672
+    to_port     = 15672
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-    description = "RabbitMQ API port"
+    description = "RabbitMQ API and Management UI port"
   }
 
   ingress {
@@ -48,14 +48,6 @@ resource "aws_security_group" "rabbitmq" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
     description = "RabbitMQ broker port"
-  }
-
-  ingress {
-    from_port   = 15672
-    to_port     = 15672
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "RabbitMQ management UI"
   }
 
   ingress {
@@ -79,7 +71,6 @@ resource "aws_security_group" "rabbitmq" {
     Service     = "rabbitmq"
   }
 
-  # Keeps things clean during hot replacements
   lifecycle {
     create_before_destroy = true
   }
