@@ -12,7 +12,7 @@ pipeline {
         PATH = "/usr/bin:${env.PATH}"
         
         // Credentials from Jenkins
-        NEXUS_CREDS = credentials('nexus-creds')
+        NEXUS_CREDS = credentials('nexus-credentials')
         AWS_ACCESS_KEY_ID = credentials('aws-access-key-id')
         AWS_SECRET_ACCESS_KEY = credentials('aws-secret-access-key')
         
@@ -114,7 +114,7 @@ pipeline {
                         // List files to verify
                         sh "ls -la target/"
                         
-                        withCredentials([usernamePassword(credentialsId: 'nexus-creds', 
+                        withCredentials([usernamePassword(credentialsId: 'nexus-credentials', 
                                                         usernameVariable: 'NEXUS_USER', 
                                                         passwordVariable: 'NEXUS_PASS')]) {
                             sh """
