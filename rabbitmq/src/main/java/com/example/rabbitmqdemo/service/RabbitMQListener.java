@@ -12,7 +12,7 @@ public class RabbitMQListener {
     private SimpMessagingTemplate messagingTemplate;
 
     @Autowired
-    private RedisService redisService;  // ← Use this instead of RestTemplate
+    private RedisService redisService;  // ← Use RedisService (not RestTemplate)
 
     @RabbitListener(queues = "my-queue")
     public void receiveMessage(String message) {
@@ -20,12 +20,12 @@ public class RabbitMQListener {
             System.out.println("Received from RabbitMQ: " + message);
             messagingTemplate.convertAndSend("/topic/messages", message);
 
-            // ✅ Use RedisService with configurable URL
+            // ✅ Use RedisService
             redisService.sendToRedis(message);
             System.out.println("Send Message SUCCESS: " + message);
 
         } catch (Exception exception) {
-            System.err.println("Exception:::::!!!!! " + exception);
+            System.err.println("Exception: " + exception);
         }
     }
 }

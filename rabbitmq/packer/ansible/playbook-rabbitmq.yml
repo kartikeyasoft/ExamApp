@@ -56,20 +56,21 @@
     - name: Create application.yml
       copy:
         dest: "/opt/{{ app_name }}/application.yml"
-        owner: "{{ app_user }}"
-        group: "{{ app_user }}"
-        mode: "0644"
         content: |
           server:
-            port: ${SERVER_PORT:{{ service_port }}}
+            port: ${SERVER_PORT:8001}
           
           spring:
             application:
-              name: ${SPRING_APP_NAME:{{ app_name }}}
-            # ✅ ADD Redis configuration
+              name: ${SPRING_APP_NAME:rabbitmq}
             redis:
-              host: ${REDIS_HOST:{{ redis_host }}}
-              port: ${REDIS_PORT:{{ redis_port }}}
+              host: ${REDIS_HOST:localhost}
+              port: ${REDIS_PORT:6379}
+          
+          # ✅ ADD THIS SECTION
+          redis:
+            api:
+              url: ${REDIS_API_URL:http://localhost:1222}
           
           eureka:
             client:
@@ -91,18 +92,15 @@
     - name: Create environment file
       copy:
         dest: "/opt/{{ app_name }}/{{ app_name }}.env"
-        owner: "{{ app_user }}"
-        group: "{{ app_user }}"
-        mode: "0600"
         content: |
           EUREKA_URL=http://localhost:{{ eureka_port }}/eureka/
           SERVER_PORT={{ service_port }}
           SPRING_APP_NAME={{ app_name }}
-          # ✅ ADD Redis host and port
+          # ✅ ADD THESE 3 LINES (WERE MISSING)
           REDIS_HOST={{ redis_host }}
           REDIS_PORT={{ redis_port }}
-          # ✅ Keep HTTP API URL for service discovery
-          REDIS_SERVICE_URL=http://localhost:1222/redis
+          REDIS_API_URL=http://{{ redis_host }}:1222
+          REDIS_SERVICE_URL=http://{{ redis_host }}:1222/redis
           EUREKA_CLIENT_REGISTER_WITH_EUREKA=true
           EUREKA_CLIENT_FETCH_REGISTRY=true
           EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
@@ -130,37 +128,30 @@
         msg: "JAR file was not downloaded successfully from Nexus"
       when: not jar_file.stat.exists or jar_file.stat.size == 0
 
-    - name: Create systemd service file with environment file support
+    - name: Create systemd service file
       copy:
         dest: "/etc/systemd/system/{{ app_name }}.service"
-        mode: "0644"
         content: |
           [Unit]
           Description=RabbitMQ API Service
           After=network.target rabbitmq-server.service
-          Wants=network.target
           
           [Service]
           User={{ app_user }}
           Group={{ app_user }}
           WorkingDirectory=/opt/{{ app_name }}
           EnvironmentFile=/opt/{{ app_name }}/{{ app_name }}.env
-          # ✅ ADD Redis Java properties
           ExecStart=/usr/bin/java \
             -Dspring.redis.host=${REDIS_HOST} \
             -Dspring.redis.port=${REDIS_PORT} \
+            -Dredis.api.url=${REDIS_API_URL} \
             -Dserver.port=${SERVER_PORT} \
             -Dspring.application.name=${SPRING_APP_NAME} \
             -Deureka.client.service-url.defaultZone=${EUREKA_URL} \
             -jar /opt/{{ app_name }}/{{ app_name }}.jar
-          SuccessExitStatus=143
           Restart=always
           RestartSec=10
-          StandardOutput=journal
-          StandardError=journal
-          
-          TimeoutStartSec=300
-          TimeoutStopSec=120
+          SuccessExitStatus=143
           
           [Install]
           WantedBy=multi-user.target

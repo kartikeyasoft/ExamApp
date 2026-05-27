@@ -10,14 +10,13 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/messages")
-@CrossOrigin("*")
 public class MessageController {
 
     @Autowired
     private RabbitTemplate rabbitTemplate;
 
     @Autowired
-    private RedisService redisService;  // ← Use this
+    private RedisService redisService;  // ← Use RedisService
 
     @PostMapping("/send")
     public ResponseEntity<String> sendMessage(@RequestBody String message) {
@@ -27,8 +26,7 @@ public class MessageController {
 
     @GetMapping("/history")
     public ResponseEntity<?> getNotificationHistory() {
-        // ✅ Use RedisService with configurable URL
-        List<Object> history = redisService.getFromRedis("/redis/history", List.class);
+        List<Object> history = redisService.getHistory();  // ← Use RedisService
         return ResponseEntity.ok(history);
     }
 }
