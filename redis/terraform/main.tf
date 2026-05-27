@@ -14,12 +14,10 @@ terraform {
 provider "aws" {
   region = var.aws_region
   
-  # Prevent plugin issues
   skip_credentials_validation = false
   skip_region_validation      = false
   skip_requesting_account_id  = false
   
-  # Max retries for API calls
   max_retries = 5
 }
 
@@ -88,27 +86,35 @@ resource "aws_instance" "redis" {
 
   user_data = <<-EOF
     #!/bin/bash
-    # Create environment file with Eureka URL from SSM
-    cat > /opt/redis/redis.env << 'ENVEOF'
-    EUREKA_URL=${var.eureka_url}
-    SERVER_PORT=${var.service_port} 
-    SPRING_APP_NAME=redis
-  
+    set -e
+    
+    echo "Starting Redis instance configuration..."
+    
+    # Extract Eureka IP from URL
+    EUREKA_IP=$(echo "${var.eureka_url}" | sed -E 's|https?://([^:/]+).*|\1|')
+    echo "Eureka IP: ${EUREKA_IP}"
+    
+    # Update the environment file (it already exists from AMI)
+    if [ -f /opt/redis/redis.env ]; then
+        echo "Updating /opt/redis/redis.env"
+        sed -i "s|http://localhost:8761/eureka/|${var.eureka_url}|g" /opt/redis/redis.env
+        cat /opt/redis/redis.env
+    else
+        echo "ERROR: /opt/redis/redis.env not found!"
+        exit 1
+    fi
+    
+    # Update application.yml if it exists
+    if [ -f /opt/redis/application.yml ]; then
+        echo "Updating /opt/redis/application.yml"
+        sed -i "s|defaultZone: \${EUREKA_URL}|defaultZone: ${var.eureka_url}|g" /opt/redis/application.yml
+    fi
     
     # Set proper permissions
-    chown redis:redis /opt/redis/redis.env 2>/dev/null || true
-    chmod 600 /opt/redis/redis.env 2>/dev/null || true
+    chown -R redis:redis /opt/redis/ 2>/dev/null || true
     
-    # Create systemd override directory
-    mkdir -p /etc/systemd/system/redis.service.d
-    
-    # Create override config to load environment file
-    cat > /etc/systemd/system/redis.service.d/override.conf << 'SYSTEMDEOF'
-    [Service]
-    EnvironmentFile=/opt/redis/redis.env
-    SYSTEMDEOF
-    
-    # Reload systemd and restart service
+    # Restart the service
+    echo "Restarting redis service..."
     systemctl daemon-reload
     systemctl restart redis
     
@@ -126,4 +132,3 @@ resource "aws_instance" "redis" {
     create_before_destroy = true
   }
 }
-
