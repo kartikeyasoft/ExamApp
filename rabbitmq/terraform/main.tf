@@ -26,30 +26,31 @@ data "aws_ami" "rabbitmq" {
   }
 }
 
-
 # Security group for RabbitMQ
 resource "aws_security_group" "rabbitmq" {
-  name_prefix = "rabbitmq-sg-${var.environment}-" 
+  name_prefix = "rabbitmq-sg-${var.environment}-"
   description = "Security group for RabbitMQ API service"
   vpc_id      = var.vpc_id
 
-  # Combined rule: Handles both API Port and Management UI on 15672
+  # RabbitMQ Management UI port
   ingress {
     from_port   = 15672
     to_port     = 15672
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-    description = "RabbitMQ API and Management UI port"
+    description = "RabbitMQ Management UI port"
   }
 
+  # Spring Boot RabbitMQ API port
   ingress {
-    from_port   = 8001
-    to_port     = 8001
+    from_port   = var.service_port
+    to_port     = var.service_port
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
     description = "Spring Boot RabbitMQ API port"
   }
 
+  # RabbitMQ broker port
   ingress {
     from_port   = 5672
     to_port     = 5672
@@ -58,6 +59,7 @@ resource "aws_security_group" "rabbitmq" {
     description = "RabbitMQ broker port"
   }
 
+  # SSH access
   ingress {
     from_port   = 22
     to_port     = 22
@@ -66,6 +68,7 @@ resource "aws_security_group" "rabbitmq" {
     description = "SSH access"
   }
 
+  # Outbound internet access
   egress {
     from_port   = 0
     to_port     = 0
@@ -97,39 +100,31 @@ resource "aws_instance" "rabbitmq" {
     set -e
     
     echo "Starting RabbitMQ API instance configuration..."
-    
-    # Wait for cloud-init
     sleep 10
     
     # Extract Redis IP from URL
     REDIS_IP=$(echo "${var.redis_url}" | sed -E 's|https?://([^:/]+).*|\1|')
     
-    # Use the protocol port from Terraform variable (6379)
-    REDIS_PROTOCOL_PORT="${var.redis_protocol_port}"
-    REDIS_API_PORT="${var.redis_api_port}"
-    
-    echo "Redis IP: $${REDIS_IP}"
-    echo "Redis Protocol Port: $${REDIS_PROTOCOL_PORT}"
-    echo "Redis API Port: $${REDIS_API_PORT}"
+    echo "Redis IP: ${REDIS_IP}"
     
     # Ensure directory exists
     mkdir -p /opt/rabbitmq
     
-    # Create environment file with ALL Redis variables
+    # Create environment file
     cat > /opt/rabbitmq/rabbitmq.env << ENVEOF
     EUREKA_URL=${var.eureka_url}
     SERVER_PORT=${var.service_port}
     SPRING_APP_NAME=rabbitmq
-    REDIS_HOST=$${REDIS_IP}
-    REDIS_PORT=$${REDIS_PROTOCOL_PORT}
-    REDIS_API_URL=http://$${REDIS_IP}:$${REDIS_API_PORT}
+    REDIS_HOST=${REDIS_IP}
+    REDIS_PORT=6379
+    REDIS_API_URL=http://${REDIS_IP}:1222
     REDIS_SERVICE_URL=${var.redis_url}
     EUREKA_CLIENT_REGISTER_WITH_EUREKA=true
     EUREKA_CLIENT_FETCH_REGISTRY=true
     EUREKA_INSTANCE_PREFER_IP_ADDRESS=true
     ENVEOF
     
-    # Set secure permissions
+    # Set permissions
     chown -R rabbitmq:rabbitmq /opt/rabbitmq/
     chmod 600 /opt/rabbitmq/rabbitmq.env
     
@@ -182,33 +177,29 @@ resource "aws_instance" "rabbitmq" {
     Group=rabbitmq
     WorkingDirectory=/opt/rabbitmq
     EnvironmentFile=/opt/rabbitmq/rabbitmq.env
-    ExecStart=/usr/bin/java \\
-      -Dspring.redis.host=\${REDIS_HOST} \\
-      -Dspring.redis.port=\${REDIS_PORT} \\
-      -Dredis.api.url=\${REDIS_API_URL} \\
-      -Dserver.port=\${SERVER_PORT} \\
-      -Dspring.application.name=\${SPRING_APP_NAME} \\
-      -Deureka.client.service-url.defaultZone=\${EUREKA_URL} \\
-      -jar /opt/rabbitmq/rabbitmq.jar
+    ExecStart=/usr/bin/java -jar /opt/rabbitmq/rabbitmq.jar
     Restart=always
     RestartSec=10
     SuccessExitStatus=143
+    StandardOutput=journal
+    StandardError=journal
     
     [Install]
     WantedBy=multi-user.target
     SERVICEEOF
     
-    # Reload and restart
+    # Reload systemd and start service
     systemctl daemon-reload
     systemctl restart rabbitmq
     
     # Verification
     sleep 10
     if systemctl is-active --quiet rabbitmq; then
-        echo "✅ RabbitMQ App API Service running on port ${var.service_port}!"
+        echo "✅ RabbitMQ running on port ${var.service_port}!"
     else
-        echo "⚠️ RabbitMQ App API Service failed to start"
+        echo "⚠️ RabbitMQ failed to start"
         journalctl -u rabbitmq -n 20 --no-pager
+        exit 1
     fi
     
     echo "✅ Configuration completed."
@@ -225,3 +216,4 @@ resource "aws_instance" "rabbitmq" {
     create_before_destroy = true
   }
 }
+
