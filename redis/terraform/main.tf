@@ -83,7 +83,6 @@ resource "aws_instance" "redis" {
   subnet_id              = var.subnet_id
   vpc_security_group_ids = [aws_security_group.redis.id]
   key_name               = var.key_name
-
 user_data = <<-EOF
   #!/bin/bash
   set -e
@@ -108,10 +107,10 @@ user_data = <<-EOF
       exit 1
   fi
   
-  # Update application.yml
+  # Update application.yml (Fixed the Terraform escape character here)
   if [ -f /opt/redis/application.yml ]; then
       echo "Updating /opt/redis/application.yml"
-      sed -i "s|defaultZone: \\\${EUREKA_URL}|defaultZone: ${var.eureka_url}|g" /opt/redis/application.yml
+      sed -i "s|defaultZone: \\\$$\{EUREKA_URL\}|defaultZone: ${var.eureka_url}|g" /opt/redis/application.yml
       echo "✅ Updated application.yml"
   fi
   
@@ -134,6 +133,7 @@ user_data = <<-EOF
   
   echo "✅ Redis configured with Eureka URL: ${var.eureka_url}"
 EOF
+
 
   tags = {
     Name        = "redis-${var.environment}"
