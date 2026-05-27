@@ -105,8 +105,8 @@ user_data = <<-EOF
   REDIS_IP=$(echo "${var.redis_url}" | sed -E 's|https?://([^:/]+).*|\1|')
   REDIS_PORT=$(echo "${var.redis_url}" | grep -oE ':[0-9]+' | head -1 | tr -d ':')
   
-  echo "Redis IP: ${REDIS_IP}"
-  echo "Redis Port: ${REDIS_PORT}"
+  echo "Redis IP: $${REDIS_IP}"
+  echo "Redis Port: $${REDIS_PORT}"
   
   # Ensure directory exists
   mkdir -p /opt/rabbitmq
@@ -116,9 +116,9 @@ user_data = <<-EOF
   EUREKA_URL=${var.eureka_url}
   SERVER_PORT=${var.service_port}
   SPRING_APP_NAME=rabbitmq
-  REDIS_HOST=${REDIS_IP}
-  REDIS_PORT=${REDIS_PORT}
-  REDIS_API_URL=http://${REDIS_IP}:1222
+  REDIS_HOST=$${REDIS_IP}
+  REDIS_PORT=$${REDIS_PORT}
+  REDIS_API_URL=http://$${REDIS_IP}:1222
   REDIS_SERVICE_URL=${var.redis_url}
   EUREKA_CLIENT_REGISTER_WITH_EUREKA=true
   EUREKA_CLIENT_FETCH_REGISTRY=true
@@ -130,28 +130,28 @@ user_data = <<-EOF
   chmod 600 /opt/rabbitmq/rabbitmq.env
   
   # Create application.yml
-  cat > /opt/rabbitmq/application.yml << APPEOF
+  cat > /opt/rabbitmq/application.yml << 'APPEOF'
   server:
-    port: \${SERVER_PORT:8001}
+    port: $${SERVER_PORT:-8001}
   
   spring:
     application:
-      name: \${SPRING_APP_NAME:rabbitmq}
+      name: $${SPRING_APP_NAME:-rabbitmq}
     redis:
-      host: \${REDIS_HOST:${REDIS_IP}}
-      port: \${REDIS_PORT:${REDIS_PORT}}
+      host: $${REDIS_HOST:-localhost}
+      port: $${REDIS_PORT:-6379}
   
   redis:
     api:
-      url: \${REDIS_API_URL:http://${REDIS_IP}:1222}
+      url: $${REDIS_API_URL:-http://localhost:1222}
   
   eureka:
     client:
       service-url:
-        defaultZone: \${EUREKA_URL}
+        defaultZone: $${EUREKA_URL}
     instance:
       prefer-ip-address: true
-      instance-id: \${spring.cloud.client.ip-address}:\${server.port}
+      instance-id: $${spring.cloud.client.ip-address}:$${server.port}
   
   management:
     endpoints:
@@ -167,7 +167,7 @@ user_data = <<-EOF
   chmod 644 /opt/rabbitmq/application.yml
   
   # Create systemd service
-  cat > /etc/systemd/system/rabbitmq.service << SERVICEEOF
+  cat > /etc/systemd/system/rabbitmq.service << 'SERVICEEOF'
   [Unit]
   Description=RabbitMQ API Service
   After=network.target rabbitmq-server.service
@@ -178,13 +178,13 @@ user_data = <<-EOF
   Group=rabbitmq
   WorkingDirectory=/opt/rabbitmq
   EnvironmentFile=/opt/rabbitmq/rabbitmq.env
-  ExecStart=/usr/bin/java \\
-    -Dspring.redis.host=\${REDIS_HOST} \\
-    -Dspring.redis.port=\${REDIS_PORT} \\
-    -Dredis.api.url=\${REDIS_API_URL} \\
-    -Dserver.port=\${SERVER_PORT} \\
-    -Dspring.application.name=\${SPRING_APP_NAME} \\
-    -Deureka.client.service-url.defaultZone=\${EUREKA_URL} \\
+  ExecStart=/usr/bin/java \
+    -Dspring.redis.host=$${REDIS_HOST} \
+    -Dspring.redis.port=$${REDIS_PORT} \
+    -Dredis.api.url=$${REDIS_API_URL} \
+    -Dserver.port=$${SERVER_PORT} \
+    -Dspring.application.name=$${SPRING_APP_NAME} \
+    -Deureka.client.service-url.defaultZone=$${EUREKA_URL} \
     -jar /opt/rabbitmq/rabbitmq.jar
   Restart=always
   RestartSec=10
