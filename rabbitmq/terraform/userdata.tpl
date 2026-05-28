@@ -37,26 +37,26 @@ ENVEOF
 chown -R rabbitmq:rabbitmq /opt/rabbitmq/
 chmod 600 /opt/rabbitmq/rabbitmq.env
 
-# Create application.yml
+# Create application.yml (Spring/Yaml placeholders are correctly escaped with $$)
 cat > /opt/rabbitmq/application.yml << 'APPEOF'
 server:
-  port: ${SERVER_PORT:-8001}
+  port: $${SERVER_PORT:-8001}
 spring:
   application:
-    name: ${SPRING_APP_NAME:-rabbitmq}
+    name: $${SPRING_APP_NAME:-rabbitmq}
   redis:
-    host: ${REDIS_HOST:-localhost}
-    port: ${REDIS_PORT:-6379}
+    host: $${REDIS_HOST:-localhost}
+    port: $${REDIS_PORT:-6379}
 redis:
   api:
-    url: ${REDIS_API_URL:-http://localhost:1222}
+    url: $${REDIS_API_URL:-http://localhost:1222}
 eureka:
   client:
     service-url:
-      defaultZone: ${EUREKA_URL}
+      defaultZone: $${EUREKA_URL}
   instance:
     prefer-ip-address: true
-    instance-id: ${spring.cloud.client.ip-address}:${server.port}
+    instance-id: $${spring.cloud.client.ip-address}:$${server.port}
 management:
   endpoints:
     web:
@@ -70,7 +70,7 @@ APPEOF
 chown rabbitmq:rabbitmq /opt/rabbitmq/application.yml
 chmod 644 /opt/rabbitmq/application.yml
 
-# Create systemd service
+# Create systemd service (Systemd environment references are correctly escaped with $$)
 cat > /etc/systemd/system/rabbitmq.service << 'SERVICEEOF'
 [Unit]
 Description=RabbitMQ API Service

@@ -81,7 +81,6 @@ resource "aws_security_group" "rabbitmq" {
     create_before_destroy = true
   }
 }
-
 # EC2 Instance
 resource "aws_instance" "rabbitmq" {
   ami                    = var.ami_id != "" ? var.ami_id : data.aws_ami.rabbitmq.id
@@ -90,7 +89,6 @@ resource "aws_instance" "rabbitmq" {
   vpc_security_group_ids = [aws_security_group.rabbitmq.id]
   key_name               = var.key_name
 
-  # Strictly uses the built-in native function to parse the userdata.tpl file safely
   user_data = templatefile("${path.module}/userdata.tpl", {
     eureka_url   = var.eureka_url
     redis_url    = var.redis_url
