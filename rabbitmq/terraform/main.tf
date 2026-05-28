@@ -26,6 +26,7 @@ data "aws_ami" "rabbitmq" {
   }
 }
 
+
 # Security group for RabbitMQ
 resource "aws_security_group" "rabbitmq" {
   name_prefix = "rabbitmq-sg-${var.environment}-" 
@@ -83,7 +84,6 @@ resource "aws_security_group" "rabbitmq" {
   }
 }
 
-# EC2 Instance for RabbitMQ
 # EC2 Instance
 # EC2 Instance
 resource "aws_instance" "rabbitmq" {
@@ -93,11 +93,18 @@ resource "aws_instance" "rabbitmq" {
   vpc_security_group_ids = [aws_security_group.rabbitmq.id]
   key_name               = var.key_name
 
-  user_data = templatefile("${path.module}/userdata.sh", {
-    eureka_url   = var.eureka_url
-    redis_url    = var.redis_url
-    service_port = var.service_port
-  })
+  # Injects parameters via shell environment, keeping the script 100% static
+  user_data = <<-EOF
+    #!/bin/bash
+    export TF_EUREKA_URL="${var.eureka_url}"
+    export TF_REDIS_URL="${var.redis_url}"
+    export TF_SERVICE_PORT="${var.service_port}"
+    
+    $(cat << 'SCRIPT_EOF'
+    ${file("${path.module}/userdata.sh")}
+    SCRIPT_EOF
+    )
+  EOF
 
   tags = {
     Name        = "rabbitmq-${var.environment}"
