@@ -15,7 +15,7 @@ provider "aws" {
   region = var.aws_region
 }
 
-# Data source to get the latest RabbitMQ AMI
+# Data source to get the latest RabbitMQ AMI (fallback if not provided)
 data "aws_ami" "rabbitmq" {
   most_recent = true
   owners      = ["self"]
@@ -82,11 +82,6 @@ resource "aws_security_group" "rabbitmq" {
   }
 }
 
-# Render script isolated via metadata template block
-data "templatefile" "script" {
-  count = 0 # Dummy block reference to hold function call safely
-}
-
 # EC2 Instance
 resource "aws_instance" "rabbitmq" {
   ami                    = var.ami_id != "" ? var.ami_id : data.aws_ami.rabbitmq.id
@@ -95,7 +90,7 @@ resource "aws_instance" "rabbitmq" {
   vpc_security_group_ids = [aws_security_group.rabbitmq.id]
   key_name               = var.key_name
 
-  # Reads your file directly and bypasses line processing errors
+  # Strictly uses the built-in native function to parse the userdata.tpl file safely
   user_data = templatefile("${path.module}/userdata.tpl", {
     eureka_url   = var.eureka_url
     redis_url    = var.redis_url
