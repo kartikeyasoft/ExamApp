@@ -1,0 +1,188 @@
+---
+- name: Provision Redis golden image
+  hosts: all
+  become: yes
+  vars:
+    app_user: "redis"
+    app_name: "redis"
+    app_version: "{{ lookup('env', 'SERVICE_VERSION') }}"
+    nexus_url: "{{ lookup('env', 'NEXUS_URL') }}"
+    service_port: "{{ lookup('env', 'SERVICE_PORT') | default('1222') }}"
+    eureka_port: "{{ lookup('env', 'EUREKA_PORT') | default('8761') }}"
+    redis_host: "localhost"
+    redis_port: "6379"
+
+  tasks:
+    - name: Install Java 17
+      apt:
+        name: openjdk-17-jre-headless
+        state: present
+        update_cache: yes
+
+    - name: Install Redis Server
+      apt:
+        name: redis-server
+        state: present
+   
+    - name: Configure Redis to listen on all interfaces
+      lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: '^bind '
+        line: 'bind 0.0.0.0'
+      notify: restart redis
+
+    - name: Disable Redis protected mode
+      lineinfile:
+        path: /etc/redis/redis.conf
+        regexp: '^protected-mode '
+        line: 'protected-mode no'
+      notify: restart redis
+
+    - name: Enable Redis to start on boot
+      systemd:
+        name: redis-server
+        enabled: yes
+
+    - name: Start and enable Redis
+      systemd:
+        name: redis-server
+        state: started
+        enabled: yes
+
+    - name: Ensure redis user exists
+      user:
+        name: "{{ app_user }}"
+        system: yes
+        home: "/opt/{{ app_name }}"
+        create_home: yes
+        state: present
+      ignore_errors: yes
+
+    - name: Create application directory
+      file:
+        path: "/opt/{{ app_name }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0755"
+
+    - name: Create application.yml
+      copy:
+        dest: "/opt/{{ app_name }}/application.yml"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0644"
+        content: |
+          server:
+            port: ${SERVER_PORT:{{ service_port }}}
+          
+          spring:
+            application:
+              name: ${SPRING_APP_NAME:{{ app_name }}}
+            redis:
+              host: ${REDIS_HOST:{{ redis_host }}}
+              port: ${REDIS_PORT:{{ redis_port }}}
+          
+          eureka:
+            client:
+              service-url:
+                defaultZone: ${EUREKA_URL:http://localhost:{{ eureka_port }}/eureka/}
+            instance:
+              prefer-ip-address: true
+              instance-id: ${spring.cloud.client.ip-address}:${server.port}
+          
+          logging:
+            level:
+              com.ksapp.redis: INFO
+          
+          management:
+            endpoints:
+              web:
+                exposure:
+                  include: health,info
+            endpoint:
+              health:
+                show-details: always
+
+    - name: Create environment file
+      copy:
+        dest: "/opt/{{ app_name }}/{{ app_name }}.env"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0600"
+        content: |
+          EUREKA_URL=http://localhost:{{ eureka_port }}/eureka/
+          SERVER_PORT={{ service_port }}
+          SPRING_APP_NAME={{ app_name }}
+          REDIS_HOST={{ redis_host }}
+          REDIS_PORT={{ redis_port }}
+
+    - name: Download Redis JAR from Nexus
+      get_url:
+        url: "{{ nexus_url }}/com/ksapp/redis/{{ app_version }}/redis-{{ app_version }}.jar"
+        dest: "/opt/{{ app_name }}/{{ app_name }}.jar"
+        owner: "{{ app_user }}"
+        group: "{{ app_user }}"
+        mode: "0644"
+        timeout: 120
+      retries: 5
+      delay: 10
+      register: download_result
+      until: download_result is success
+
+    - name: Create systemd service file
+      copy:
+        dest: "/etc/systemd/system/{{ app_name }}.service"
+        content: |
+          [Unit]
+          Description=Redis API Service
+          After=network.target
+          
+          [Service]
+          User={{ app_user }}
+          Group={{ app_user }}
+          WorkingDirectory=/opt/{{ app_name }}
+          EnvironmentFile=/opt/{{ app_name }}/{{ app_name }}.env
+          ExecStart=/usr/bin/java \
+            -Dspring.redis.host=${REDIS_HOST} \
+            -Dspring.redis.port=${REDIS_PORT} \
+            -Dserver.port=${SERVER_PORT} \
+            -Dspring.application.name=${SPRING_APP_NAME} \
+            -Deureka.client.service-url.defaultZone=${EUREKA_URL} \
+            -jar /opt/{{ app_name }}/{{ app_name }}.jar
+          Restart=always
+          RestartSec=10
+          SuccessExitStatus=143
+          
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start service
+      systemd:
+        name: "{{ app_name }}"
+        enabled: yes
+        state: started
+
+    - name: Display service status
+      debug:
+        msg: |
+          ========================================
+          Redis Deployment Complete!
+          ========================================
+          Service Name: {{ app_name }}
+          Service Port: {{ service_port }}
+          Eureka URL: http://localhost:{{ eureka_port }}/eureka/
+          Redis Host: {{ redis_host }}
+          Redis Port: {{ redis_port }}
+          ========================================
+
+  # ✅ ADD THIS HANDLERS SECTION AT THE END
+  handlers:
+    - name: restart redis
+      systemd:
+        name: redis-server
+        state: restarted
