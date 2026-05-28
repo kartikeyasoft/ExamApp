@@ -38,29 +38,29 @@ ENVEOF
 chown -R rabbitmq:rabbitmq /opt/rabbitmq/
 chmod 600 /opt/rabbitmq/rabbitmq.env
 
-# Create application.yml
+# Create application.yml (No backslashes needed here)
 cat > /opt/rabbitmq/application.yml << 'APPEOF'
 server:
-  port: ${SERVER_PORT:-8001}
+  port: $${SERVER_PORT:-8001}
 
 spring:
   application:
-    name: ${SPRING_APP_NAME:-rabbitmq}
+    name: $${SPRING_APP_NAME:-rabbitmq}
   redis:
-    host: ${REDIS_HOST:-localhost}
-    port: ${REDIS_PORT:-6379}
+    host: $${REDIS_HOST:-localhost}
+    port: $${REDIS_PORT:-6379}
 
 redis:
   api:
-    url: ${REDIS_API_URL:-http://localhost:1222}
+    url: $${REDIS_API_URL:-http://localhost:1222}
 
 eureka:
   client:
     service-url:
-      defaultZone: ${EUREKA_URL}
+      defaultZone: $${EUREKA_URL}
   instance:
     prefer-ip-address: true
-    instance-id: ${spring.cloud.client.ip-address}:${server.port}
+    instance-id: $${spring.cloud.client.ip-address}:$${server.port}
 
 management:
   endpoints:
@@ -75,7 +75,7 @@ APPEOF
 chown rabbitmq:rabbitmq /opt/rabbitmq/application.yml
 chmod 644 /opt/rabbitmq/application.yml
 
-# Create systemd service
+# Create systemd service (No backslashes before variable names)
 cat > /etc/systemd/system/rabbitmq.service << 'SERVICEEOF'
 [Unit]
 Description=RabbitMQ API Service
@@ -88,12 +88,12 @@ Group=rabbitmq
 WorkingDirectory=/opt/rabbitmq
 EnvironmentFile=/opt/rabbitmq/rabbitmq.env
 ExecStart=/usr/bin/java \
-  -Dspring.redis.host=\${REDIS_HOST} \
-  -Dspring.redis.port=\${REDIS_PORT} \
-  -Dredis.api.url=\${REDIS_API_URL} \
-  -Dserver.port=\${SERVER_PORT} \
-  -Dspring.application.name=\${SPRING_APP_NAME} \
-  -Deureka.client.service-url.defaultZone=\${EUREKA_URL} \
+  -Dspring.redis.host=$${REDIS_HOST} \
+  -Dspring.redis.port=$${REDIS_PORT} \
+  -Dredis.api.url=$${REDIS_API_URL} \
+  -Dserver.port=$${SERVER_PORT} \
+  -Dspring.application.name=$${SPRING_APP_NAME} \
+  -Deureka.client.service-url.defaultZone=$${EUREKA_URL} \
   -jar /opt/rabbitmq/rabbitmq.jar
 Restart=always
 RestartSec=10

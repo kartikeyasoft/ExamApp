@@ -85,6 +85,7 @@ resource "aws_security_group" "rabbitmq" {
 
 # EC2 Instance for RabbitMQ
 # EC2 Instance
+# EC2 Instance
 resource "aws_instance" "rabbitmq" {
   ami                    = var.ami_id != "" ? var.ami_id : data.aws_ami.rabbitmq.id
   instance_type          = var.instance_type
@@ -92,7 +93,6 @@ resource "aws_instance" "rabbitmq" {
   vpc_security_group_ids = [aws_security_group.rabbitmq.id]
   key_name               = var.key_name
 
-  # Reads external shell file and safely interpolates ONLY specified variables
   user_data = templatefile("${path.module}/userdata.sh", {
     eureka_url   = var.eureka_url
     redis_url    = var.redis_url
