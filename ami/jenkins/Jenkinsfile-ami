@@ -1,0 +1,56 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_CONFIG_FILE = '/var/lib/jenkins/.aws/config'
+        AWS_DEFAULT_REGION    = 'us-east-1'
+    }
+
+    stages {
+        stage('Build AMI') {
+            steps {
+                dir('ami/packer') {
+                    sh """
+                        packer init ami.pkr.hcl
+                        packer build ami.pkr.hcl
+                    """
+                }
+                script {
+                    // Capture AMI ID from packer output
+                    env.AMI_ID = sh(script: "grep -oP 'ami-\\w+' packer_output.txt | tail -1", returnStdout: true).trim()
+                }
+            }
+        }
+
+        stage('Show AMI Details') {
+            steps {
+                script {
+                    echo "AMI ID: ${env.AMI_ID}"
+                    sh "aws ec2 describe-images --image-ids ${env.AMI_ID}"
+                }
+            }
+        }
+
+        stage('Post Actions') {
+            steps {
+                script {
+                    echo "Cleaning up temporary files"
+                    sh "rm -f packer_output.txt"
+                    echo "AMI ${env.AMI_ID} built successfully"
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo "Pipeline completed successfully! AMI: ${env.AMI_ID}"
+        }
+        failure {
+            echo "Pipeline failed! Check logs for details."
+        }
+        always {
+            echo "Pipeline execution finished"
+        }
+    }
+}
