@@ -41,26 +41,26 @@ chmod 600 /opt/rabbitmq/rabbitmq.env
 # Create application.yml (No backslashes needed here)
 cat > /opt/rabbitmq/application.yml << 'APPEOF'
 server:
-  port: $${SERVER_PORT:-8001}
+  port: ${SERVER_PORT:-8001}
 
 spring:
   application:
-    name: $${SPRING_APP_NAME:-rabbitmq}
+    name: ${SPRING_APP_NAME:-rabbitmq}
   redis:
-    host: $${REDIS_HOST:-localhost}
-    port: $${REDIS_PORT:-6379}
+    host: ${REDIS_HOST:-localhost}
+    port: ${REDIS_PORT:-6379}
 
 redis:
   api:
-    url: $${REDIS_API_URL:-http://localhost:1222}
+    url: ${REDIS_API_URL:-http://localhost:1222}
 
 eureka:
   client:
     service-url:
-      defaultZone: $${EUREKA_URL}
+      defaultZone: ${EUREKA_URL}
   instance:
     prefer-ip-address: true
-    instance-id: $${spring.cloud.client.ip-address}:$${server.port}
+    instance-id: ${spring.cloud.client.ip-address}:${server.port}
 
 management:
   endpoints:
