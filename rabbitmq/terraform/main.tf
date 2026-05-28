@@ -213,6 +213,7 @@ user_data = <<-EOF
   
   echo "✅ Configuration completed."
 EOF
+
   tags = {
     Name        = "rabbitmq-${var.environment}"
     Environment = var.environment
